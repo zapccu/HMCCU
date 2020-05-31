@@ -1,5 +1,9 @@
 # HMCCU
 Module for FHEM - Homematic CCU Integration
 
+Version 4.4 beta
+
 <h2>Installation</h2>
-Copy all files to FHEM module directory. Set execute rights to ccurpcd.pl
+In FHEM enter
+
+update all 
