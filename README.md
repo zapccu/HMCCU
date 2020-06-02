@@ -14,3 +14,5 @@ If one defines a new device of type HMCCUDEV or HMCCUCHN, HMCCU tries to detect 
 To use the new default attributes approach for existing devices, execute the following command:
 
 <pre>set myDevice defaults reset</pre>
+
+Don't forget to save your configuration after changing the attributes.
