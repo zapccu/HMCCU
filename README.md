@@ -4,9 +4,10 @@ Module for FHEM - Homematic CCU Integration
 Version 4.4 beta
 
 <h2>Installation</h2>
-In FHEM enter
+Warning! This is a beta version of the HMCCU modules. Please backup your FHEM installation before you install it.
 
-update all https://raw.githubusercontent.com/zapccu/HMCCU/master/controls_HMCCU.txt
+In FHEM enter
+<pre>update all https://raw.githubusercontent.com/zapccu/HMCCU/master/controls_HMCCU.txt</pre>
 
 <h2>Defaults for devices</h2>
 If one defines a new device of type HMCCUDEV or HMCCUCHN, HMCCU tries to detect the role of the new device and automatically assigns default settings to it.
