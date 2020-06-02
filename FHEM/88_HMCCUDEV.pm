@@ -90,6 +90,7 @@ sub HMCCUDEV_Define ($@)
 	$hash->{hmccu}{devspec}  = $devspec;
 	$hash->{hmccu}{groupexp} = $h->{groupexp} if (exists ($h->{groupexp}));
 	$hash->{hmccu}{group}    = $h->{group} if (exists ($h->{group}));
+	$hash->{hmccu}{defaults} = 0;
 
 	if (exists($h->{address})) {
 		return 'Option address not allowed' if ($init_done || $devspec ne 'virtual');
@@ -331,9 +332,7 @@ sub HMCCUDEV_Attr ($@)
 		}
 	}
 
-	if ($init_done) {
-		HMCCU_RefreshReadings ($hash);
-	}
+	HMCCU_RefreshReadings ($hash) if ($init_done);
 	
 	return;
 }
@@ -465,25 +464,6 @@ sub HMCCUDEV_Set ($@)
 	elsif (exists($hash->{hmccu}{roleCmds}{$opt})) {
 		return HMCCU_ExecuteRoleCommand ($ioHash, $hash, $opt, $a, $h);
 	}
-# 	elsif ($opt eq 'on-for-timer' || $opt eq 'on-till') {
-# 		return HMCCU_SetError ($hash, "No state value for 'on' defined")
-# 		   if (!exists($stateCmds{'on'}));
-# 		return HMCCU_SetError ($hash, "Can't find ON_TIME datapoint for device type")
-# 		   if (!HMCCU_IsValidDatapoint ($hash, $ccutype, $cc, 'ON_TIME', 2));
-# 
-# 		my $timespec = shift @$a // return HMCCU_SetError ($hash, "Usage: set $name $opt {ontime-spec}");
-# 			
-# 		if ($opt eq 'on-till') {
-# 			$timespec = HMCCU_GetTimeSpec ($timespec);
-# 			return HMCCU_SetError ($hash, 'Wrong time format. Use HH:MM[:SS]') if ($timespec < 0);
-# 		}
-# 		
-# 		$rc = HMCCU_SetMultipleDatapoints ($hash, {
-# 			"001.$ccuif.$ccuaddr:$cc.ON_TIME" => $timespec,
-# 			"002.$ccuif.$ccuaddr:$cc.$cd" => HMCCU_Substitute ('on', $stateVals, 1, undef, '')
-# 		});
-# 		return HMCCU_SetError ($hash, HMCCU_Min(0, $rc));
-# 	}
 	elsif ($opt eq 'clear') {
 		my $rnexp = shift @$a;
 		HMCCU_DeleteReadings ($hash, $rnexp);
@@ -554,19 +534,19 @@ sub HMCCUDEV_Set ($@)
 		return HMCCU_SetError ($hash, HMCCU_Min(0, $rc));
 	}
 	elsif ($opt eq 'defaults') {
-		$rc = HMCCU_SetDefaultAttributes ($hash, $cc);
+		my $mode = shift @$a // 'update';
+		$rc = HMCCU_SetDefaultAttributes ($hash, { mode => $mode, role => undef, ctrlChn => $cc });
 		$rc = HMCCU_SetDefaults ($hash) if (!$rc);
+		HMCCU_RefreshReadings ($hash) if ($rc);
 		return HMCCU_SetError ($hash, $rc == 0 ? 'No default attributes found' : 'OK');
 	}
 	else {
-		my $retmsg = 'clear defaults:noArg';
+		my $retmsg = 'clear defaults:reset,update';
 		
 		if ($hash->{readonly} ne 'yes') {
 			$retmsg .= ' config datapoint';
 			$retmsg .= " $cmdList" if ($cmdList ne '');
 			$retmsg .= ' toggle:noArg' if (scalar(@states) > 0);
-# 				$retmsg .= ' on-for-timer on-till:time'
-# 					if (HMCCU_IsValidDatapoint ($hash, $hash->{ccutype}, $cc, 'ON_TIME', 2));
 		}
 		return AttrTemplate_Set ($hash, $retmsg, $name, $opt, @$a);
 	}
@@ -821,9 +801,12 @@ sub HMCCUDEV_Get ($@)
         <code>set temp_control datapoint 2.SET_TEMPERATURE 21</code><br/>
         <code>set temp_control datapoint 2.AUTO_MODE 1 2.SET_TEMPERATURE 21</code>
       </li><br/>
-      <li><b>set &lt;name&gt; defaults</b><br/>
+      <li><b>set &lt;name&gt; defaults ['reset'|'<u>update</u>']</b><br/>
    		Set default attributes for CCU device type. Default attributes are only available for
-   		some device types.
+   		some device types and for some channels of a device type. If option 'reset' is specified,
+   		the following attributes are deleted before the new attributes are set: 
+   		'ccureadingname', 'ccuscaleval', 'eventMap', 'substexcl', 'webCmd', 'widgetOverride'.
+   		During update to version 4.4 it's recommended to use option 'reset'.
       </li><br/>
       <li><b>set &lt;name&gt; down [&lt;value&gt;]</b><br/>
       	<a href="#HMCCUCHNset">see HMCCUCHN</a>

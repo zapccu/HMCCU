@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCU.pm 18745 2019-02-26 17:33:23Z zap $
 #
-#  Version 4.4.032
+#  Version 4.4.034
 #
 #  Module for communication between FHEM and Homematic CCU2/3.
 #
@@ -55,22 +55,9 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '4.4.032';
+my $HMCCU_VERSION = '4.4.034';
 
-# Constants and default values
-my $HMCCU_MAX_IOERRORS = 100;
-my $HMCCU_MAX_QUEUESIZE = 500;
-my $HMCCU_TIME_WAIT = 100000;
-my $HMCCU_TIME_TRIGGER = 10;
-
-# RPC ping interval for default interface, should be smaller than HMCCU_TIMEOUT_EVENT
-my $HMCCU_TIME_PING = 300;
-
-my $HMCCU_TIMEOUT_CONNECTION = 10;
-my $HMCCU_TIMEOUT_WRITE = 0.001;
-my $HMCCU_TIMEOUT_ACCEPT = 1;
-my $HMCCU_TIMEOUT_EVENT = 600;
-my $HMCCU_STATISTICS = 500;
+# Timeout for CCU requests
 my $HMCCU_TIMEOUT_REQUEST = 4;
 
 # ReGa Ports
@@ -339,7 +326,7 @@ sub HMCCU_GetDutyCycle ($);
 sub HMCCU_GetHMState ($$;$);
 sub HMCCU_GetIdFromIP ($$);
 sub HMCCU_GetTimeSpec ($);
-sub HMCCU_IsFltNum ($);
+sub HMCCU_IsFltNum ($;$);
 sub HMCCU_IsIntNum ($);
 sub HMCCU_ISO2UTF ($);
 sub HMCCU_Max ($$);
@@ -378,7 +365,7 @@ sub HMCCU_Initialize ($)
 		' ccudef-readingformat:name,namelc,address,addresslc,datapoint,datapointlc'.
 		' ccudef-stripnumber ccuReadingPrefix'.
 		' ccuflags:multiple-strict,procrpc,dptnocheck,logCommand,noagg,nohmstate,updGroupMembers,'.
-		'logEvents,noEvents,noInitialUpdate,noReadings,nonBlocking,reconnect,logPong,trace'.
+		'logEvents,noEvents,noInitialUpdate,noReadings,nonBlocking,reconnect,logPong,trace,logEnhanced'.
 		' ccuReqTimeout ccuGetVars rpcinterval:2,3,5,7,10 rpcqueue rpcPingCCU'.
 		' rpcport:multiple-strict,'.join(',',sort keys %HMCCU_RPC_NUMPORT).
 		' rpcserver:on,off rpcserveraddr rpcserverport rpctimeout rpcevtimeout substitute'.
@@ -421,19 +408,15 @@ sub HMCCU_Define ($$)
 		HMCCU_Log ($hash, 1, 'Forced delayed initialization');
 	}
 	else {
-		if (HMCCU_TCPPing ($hash->{host}, $HMCCU_REGA_PORT{$hash->{prot}}, $hash->{hmccu}{ccu}{timeout})) {
-			$hash->{ccustate} = 'active';
-		}
-		else {
-			$hash->{ccustate} = 'unreachable';
-			HMCCU_Log ($hash, 1, "CCU port ".$HMCCU_REGA_PORT{$hash->{prot}}." is not reachable");
-		}
+		$hash->{ccustate} = HMCCU_TCPPing ($hash->{host}, $HMCCU_REGA_PORT{$hash->{prot}}, $hash->{hmccu}{ccu}{timeout}) ?
+			'active' : 'unreachable';
+		HMCCU_Log ($hash, 1, "CCU port ".$HMCCU_REGA_PORT{$hash->{prot}}.' is '.$hash->{ccustate});
 	}
 
 	# Get CCU IP address
 	$hash->{ccuip} = HMCCU_ResolveName ($hash->{host}, 'N/A');
 
-	# Get CCU number (if more than one)
+	# Get CCU number (if there is more than one)
 	if (scalar(@$a) >= 4) {
 		return 'CCU number must be in range 1-9' if ($$a[3] < 1 || $$a[3] > 9);
 		$hash->{CCUNum} = $$a[3];
@@ -448,36 +431,35 @@ sub HMCCU_Define ($$)
 		$hash->{CCUNum} = $ccucount+1;
 	}
 
-	$hash->{version} = $HMCCU_VERSION;
-	$hash->{ccutype} = 'CCU2/3';
-	$hash->{RPCState} = 'inactive';
-	$hash->{NOTIFYDEV} = 'global,TYPE=(HMCCU|HMCCUDEV|HMCCUCHN)';
+	$hash->{version}             = $HMCCU_VERSION;
+	$hash->{ccutype}             = 'CCU2/3';
+	$hash->{RPCState}            = 'inactive';
+	$hash->{NOTIFYDEV}           = 'global,TYPE=(HMCCU|HMCCUDEV|HMCCUCHN)';
 	$hash->{hmccu}{defInterface} = $HMCCU_RPC_PRIORITY[0];
-	$hash->{hmccu}{defPort} = $HMCCU_RPC_PORT{$hash->{hmccu}{defInterface}};
-	$hash->{hmccu}{rpcports} = undef;
+	$hash->{hmccu}{defPort}      = $HMCCU_RPC_PORT{$hash->{hmccu}{defInterface}};
+	$hash->{hmccu}{rpcports}     = undef;
 
 	HMCCU_Log ($hash, 1, "Initialized version $HMCCU_VERSION");
 	
 	my $rc = 0;
 	if ($hash->{ccustate} eq 'active') {
 		# If CCU is alive read devices, channels, interfaces and groups
-		HMCCU_Log ($hash, 1, "HMCCU: Initializing device");
+		HMCCU_Log ($hash, 1, 'Initializing device');
 		$rc = HMCCU_InitDevice ($hash);
 	}
 	
-	if ($hash->{ccustate} ne 'active' || $rc > 0) {
+	if (($hash->{ccustate} ne 'active' || $rc > 0) && !$init_done) {
 		# Schedule update of CCU assets if CCU is not active during FHEM startup
-		if (!$init_done) {
-			$hash->{hmccu}{ccu}{delayed} = 1;
-			HMCCU_Log ($hash, 1, "Scheduling delayed initialization in ".$hash->{hmccu}{ccu}{delay}." seconds");
-			InternalTimer (gettimeofday()+$hash->{hmccu}{ccu}{delay}, "HMCCU_InitDevice", $hash);
-		}
+		$hash->{hmccu}{ccu}{delayed} = 1;
+		HMCCU_Log ($hash, 1, 'Scheduling delayed initialization in '.$hash->{hmccu}{ccu}{delay}.' seconds');
+		InternalTimer (gettimeofday()+$hash->{hmccu}{ccu}{delay}, "HMCCU_InitDevice", $hash);
 	}
 	
-	$hash->{hmccu}{evtime} = 0;
-	$hash->{hmccu}{evtimeout} = 0;
+	$hash->{hmccu}{evtime}     = 0;
+	$hash->{hmccu}{evtimeout}  = 0;
 	$hash->{hmccu}{updatetime} = 0;
-	$hash->{hmccu}{rpccount} = 0;
+	$hash->{hmccu}{rpccount}   = 0;
+	$hash->{hmccu}{defaults}   = 0;
 
 	HMCCU_UpdateReadings ($hash, { 'state' => 'Initialized', 'rpcstate' => 'inactive' });
 
@@ -934,11 +916,13 @@ sub HMCCU_SetDefaultsTemplate ($$)
 	my ($hash, $template) = @_;
 	my $name = $hash->{NAME};
 	
+	$hash->{hmccu}{defaults} = 1;
 	foreach my $a (keys %{$template}) {
 		next if ($a =~ /^_/);
 		my $v = $template->{$a};
 		CommandAttr (undef, "$name $a $v");
 	}
+	$hash->{hmccu}{defaults} = 0;
 }
 
 ######################################################################
@@ -948,11 +932,9 @@ sub HMCCU_SetDefaultsTemplate ($$)
 sub HMCCU_SetDefaults ($)
 {
 	my ($hash) = @_;
-	my $name = $hash->{NAME};
 
 	# Set type specific attributes	
-	my $template = HMCCU_FindDefaults ($hash, 0);
-	return 0 if (!defined($template));
+	my $template = HMCCU_FindDefaults ($hash, 0) // return 0;
 	
 	HMCCU_SetDefaultsTemplate ($hash, $template);
 	return 1;
@@ -1120,18 +1102,10 @@ sub HMCCU_AggregateReadings ($$)
 	my $table = '';
 
 	# Get rule parameters
-	my $ftype = $hash->{hmccu}{agg}{$rule}{ftype};
-	my $fexpr = $hash->{hmccu}{agg}{$rule}{fexpr};
-	my $fexcl = $hash->{hmccu}{agg}{$rule}{fexcl};
-	my $fread = $hash->{hmccu}{agg}{$rule}{fread};
-	my $fcond = $hash->{hmccu}{agg}{$rule}{fcond};
-	my $ftrue = $hash->{hmccu}{agg}{$rule}{ftrue};
-	my $felse = $hash->{hmccu}{agg}{$rule}{felse};
-	my $fpref = $hash->{hmccu}{agg}{$rule}{fpref};
-	my $fhtml = exists($hash->{hmccu}{agg}{$rule}{fhtml}) ? 1 : 0;
+	my $r = $hash->{hmccu}{agg}{$rule};
 
 	my $resval;
-	$resval = $ftrue if ($fcond =~ /^(max|min|sum|avg)$/);
+	$resval = $r->{ftrue} if ($r->{fcond} =~ /^(max|min|sum|avg)$/);
 	
 	my @devlist = HMCCU_FindClientDevices ($hash, "(HMCCUDEV|HMCCUCHN)");
 	foreach my $d (@devlist) {
@@ -1140,98 +1114,92 @@ sub HMCCU_AggregateReadings ($$)
 		my $ct = $ch->{TYPE};
 		
 		my $fmatch = '';
-		$fmatch = $cn if ($ftype eq 'name');
-		$fmatch = $ch->{ccutype} if ($ftype eq 'type');
-		$fmatch = AttrVal ($cn, 'group', '') if ($ftype eq 'group');
-		$fmatch = AttrVal ($cn, 'room', '') if ($ftype eq 'room');
-		$fmatch = AttrVal ($cn, 'alias', '') if ($ftype eq 'alias');		
-		next if (!defined($fmatch) || $fmatch eq '' || $fmatch !~ /$fexpr/ || ($fexcl ne '' && $fmatch =~ /$fexcl/));
+		if ($r->{ftype} eq 'name')     { $fmatch = $cn; }
+		elsif ($r->{ftype} eq 'type')  { $fmatch = $ch->{ccutype}; }
+		elsif ($r->{ftype} eq 'group') { $fmatch = AttrVal ($cn, 'group', ''); }
+		elsif ($r->{ftype} eq 'room')  { $fmatch = AttrVal ($cn, 'room', ''); }
+		elsif ($r->{ftype} eq 'alias') { $fmatch = AttrVal ($cn, 'alias', ''); }
 		
-		my $fcoll = $hash->{hmccu}{agg}{$rule}{fcoll} eq 'NAME' ?
-			$cn : AttrVal ($cn, $hash->{hmccu}{agg}{$rule}{fcoll}, $cn);
+		next if ($fmatch eq '' || $fmatch !~ /$r->{fexpr}/ || ($r->{fexcl} ne '' && $fmatch =~ /$r->{fexcl}/));
+		
+		my $fcoll = $r->{fcoll} eq 'NAME' ? $cn : AttrVal ($cn, $r->{fcoll}, $cn);
 		
 		# Compare readings
 		foreach my $r (keys %{$ch->{READINGS}}) {
-			next if ($r =~ /^\./ || $r !~ /$fread/);
+			next if ($r =~ /^\./ || $r !~ /$r->{fread}/);
 			my $rv = $ch->{READINGS}{$r}{VAL};
 			my $f = 0;
 			
-			if (($fcond eq 'any' || $fcond eq 'all') && $rv =~ /$ftrue/) {
+			if (($r->{fcond} eq 'any' || $r->{fcond} eq 'all') && $rv =~ /$r->{ftrue}/) {
 				$mc++;
 				$f = 1;
 			}
-			if ($fcond eq 'max' && $rv > $resval) {
+			if ($r->{fcond} eq 'max' && $rv > $resval) {
 				$resval = $rv;
 				$mc = 1;
 				$f = 1;
 			}
-			if ($fcond eq 'min' && $rv < $resval) {
+			if ($r->{fcond} eq 'min' && $rv < $resval) {
 				$resval = $rv;
 				$mc = 1;
 				$f = 1;
 			}
-			if ($fcond eq 'sum' || $fcond eq 'avg') {
+			if ($r->{fcond} eq 'sum' || $r->{fcond} eq 'avg') {
 				$resval += $rv;
 				$mc++;
 				$f = 1;
 			}
-			if ($fcond =~ /^(gt|lt|ge|le)$/ && (!HMCCU_IsFltNum ($rv) || !HMCCU_IsFltNum($ftrue))) {
-				HMCCU_Log ($hash, 4, "Aggregation value $rv of reading $cn.$r or $ftrue is not numeric");
+			if ($r->{fcond} =~ /^(gt|lt|ge|le)$/ && (!HMCCU_IsFltNum ($rv) || !HMCCU_IsFltNum($r->{ftrue}))) {
+				HMCCU_Log ($hash, 4, "Aggregation value $rv of reading $cn.$r or $r->{ftrue} is not numeric");
 				next;
 			}
-			if (($fcond eq 'gt' && $rv > $ftrue) ||
-			    ($fcond eq 'lt' && $rv < $ftrue) ||
-			    ($fcond eq 'ge' && $rv >= $ftrue) ||
-			    ($fcond eq 'le' && $rv <= $ftrue)) {
+			if (($r->{fcond} eq 'gt' && $rv > $r->{ftrue}) ||
+			    ($r->{fcond} eq 'lt' && $rv < $r->{ftrue}) ||
+			    ($r->{fcond} eq 'ge' && $rv >= $r->{ftrue}) ||
+			    ($r->{fcond} eq 'le' && $rv <= $r->{ftrue})) {
 				$mc++;
 				$f = 1;
 			}
 			if ($f) {
-				$rl .= ($mc > 1 ? ",$fcoll" : $fcoll);
+				$rl .= ($mc > 1 ? ",$r->{fcoll}" : $r->{fcoll});
 				last;
 			}
 		}
 		$dc++;
 	}
 	
-	$rl =  $hash->{hmccu}{agg}{$rule}{fdflt} if ($rl eq '');
+	$rl =  $r->{fdflt} if ($rl eq '');
 
 	# HTML code generation
-	if ($fhtml) {
+	if ($r->{fhtml}) {
 		if ($rl ne '') {
-			$table = $hash->{hmccu}{agg}{$rule}{fhtml}{'begin-html'}.
-				$hash->{hmccu}{agg}{$rule}{fhtml}{'begin-table'};
-			$table .= $hash->{hmccu}{agg}{$rule}{fhtml}{'header'}
-				if (exists ($hash->{hmccu}{agg}{$rule}{fhtml}{'header'}));
+			$table = $r->{fhtml}{'begin-html'}.$r->{fhtml}{'begin-table'};
+			$table .= $r->{fhtml}{'header'} if (exists($r->{fhtml}{'header'}));
 
 			my $row = 1;
 			foreach my $v (split (",", $rl)) {
-				my $t_row = ($row % 2) ? $hash->{hmccu}{agg}{$rule}{fhtml}{'row-odd'} :
-					$hash->{hmccu}{agg}{$rule}{fhtml}{'row-even'};
+				my $t_row = ($row % 2) ? $r->{fhtml}{'row-odd'} : $r->{fhtml}{'row-even'};
 				$t_row =~ s/\<reading\/\>/$v/;
 				$table .= $t_row;
 				$row++;
 			}
 
-			$table .= $hash->{hmccu}{agg}{$rule}{fhtml}{'end-table'}.
-				$hash->{hmccu}{agg}{$rule}{fhtml}{'end-html'};
+			$table .= $r->{fhtml}{'end-table'}.$r->{fhtml}{'end-html'};
 		}
 		else {
-			$table = $hash->{hmccu}{agg}{$rule}{fhtml}{'begin-html'}.
-				$hash->{hmccu}{agg}{$rule}{fhtml}{'default'}.
-				$hash->{hmccu}{agg}{$rule}{fhtml}{'end-html'};
+			$table = $r->{fhtml}{'begin-html'}.$r->{fhtml}{'default'}.$r->{fhtml}{'end-html'};
 		}
 	}
 
-	if ($fcond eq 'any')                { $result = $mc > 0 ? $ftrue : $felse; }
-	elsif ($fcond eq 'all')             { $result = $mc == $dc ? $ftrue : $felse; }
-	elsif ($fcond =~ /^(min|max|sum)$/) { $result = $mc > 0 ? $resval : $felse; }
-	elsif ($fcond eq 'avg')             { $result = $mc > 0 ? $resval/$mc : $felse; }
-	elsif ($fcond =~ /^(gt|lt|ge|le)$/) { $result = $mc; }
+	if ($r->{fcond} eq 'any')                { $result = $mc > 0 ? $r->{ftrue} : $r->{felse}; }
+	elsif ($r->{fcond} eq 'all')             { $result = $mc == $dc ? $r->{ftrue} : $r->{felse}; }
+	elsif ($r->{fcond} =~ /^(min|max|sum)$/) { $result = $mc > 0 ? $resval : $r->{felse}; }
+	elsif ($r->{fcond} eq 'avg')             { $result = $mc > 0 ? $resval/$mc : $r->{felse}; }
+	elsif ($r->{fcond} =~ /^(gt|lt|ge|le)$/) { $result = $mc; }
 	
-	HMCCU_UpdateReadings ($hash, { $fpref.'state' => $result, $fpref.'match' => $mc,
-		$fpref.'count' => $dc, $fpref.'list' => $rl });
-	readingsSingleUpdate ($hash, $fpref.'table', $table, 1) if ($fhtml);
+	HMCCU_UpdateReadings ($hash, { $r->{fpref}.'state' => $result, $r->{fpref}.'match' => $mc,
+		$r->{fpref}.'count' => $dc, $r->{fpref}.'list' => $rl });
+	readingsSingleUpdate ($hash, $r->{fpref}.'table', $table, 1) if ($r->{fhtml});
 	
 	return $result;
 }
@@ -2488,25 +2456,30 @@ sub HMCCU_Log ($$$;$)
 	my $name = 'N/A';
 	
 	if ($r eq 'HASH') {
-		$name = $source->{NAME} if (exists($source->{NAME}));
+		$name = $source->{NAME} // 'N/A';
 	}
 	elsif ($r eq 'SCALAR') {
 		$name = $$source;
 	}
 	else {
-		$name = defined($source) ? $source : 'N/A';
+		$name = $source // 'N/A';
 	}
+	my $hash = $defs{$name};
 
 	my $type = exists($defs{$name}) ? $defs{$name}->{TYPE} : 'N/A';
+	if (defined($hash) && HMCCU_IsFlag ($hash, 'logEnhanced')) {
+		$type .= ":$cl";
+		$name .= " : $pid";
+	}
 	my $logname = exists($defs{$name}) ? $name : undef;
 
 	if (ref($msg) eq 'ARRAY') {
 		foreach my $m (@$msg) {
-			Log3 $logname, $level, "$type:$cl [$name : $pid] $m";
+			Log3 $logname, $level, "$type [$name] $m";
 		}
 	}
 	else {
-		Log3 $logname, $level, "$type:$cl [$name : $pid] $msg";
+		Log3 $logname, $level, "$type [$name] $msg";
 	}
 	return $rc;
 }
@@ -2568,9 +2541,8 @@ sub HMCCU_SetError ($@)
 		HMCCU_Log ($hash, 1, $msg);
 		return HMCCU_SetState ($hash, 'Error', $msg);
 	}
-	else {
-		return HMCCU_SetState ($hash, 'OK');
-	}
+
+	return HMCCU_SetState ($hash, 'OK');
 }
 
 ######################################################################
@@ -4296,6 +4268,8 @@ sub HMCCU_RefreshReadings ($)
 {
 	my ($clHash) = @_;
 	
+	return if ($clHash->{hmccu}{defaults} == 1);
+	
 	my $ioHash = HMCCU_GetHash ($clHash) // return;
 	
 	HMCCU_DeleteReadings ($clHash, '.*');
@@ -4799,7 +4773,7 @@ sub HMCCU_IsRPCServerRunning ($;$)
 		next if ($rpcdev eq '');
 		my $rc = HMCCURPCPROC_CheckProcessState ($defs{$rpcdev}, 'running');
 		if ($rc < 0 || $rc > 1) {
-			push (@$pids, $rc);
+			push (@$pids, $rc) if (defined($pids));
 			$c++;
 		}
 	}
@@ -6136,16 +6110,27 @@ sub HMCCU_GetAttribute ($$$$)
 
 sub HMCCU_SetDefaultAttributes ($;$)
 {
-	my ($clHash, $ctrlChn) = @_;
+	my ($clHash, $parRef) = @_;
 	my $clName = $clHash->{NAME};
+	
+	$parRef //= { mode => 'update', role => undef, ctrlChn => '' };
+	my $role = $parRef->{role} // HMCCU_GetChannelRole ($clHash, $parRef->{ctrlChn});
 
-	my $role = HMCCU_GetChannelRole ($clHash, $ctrlChn);
-	HMCCU_Log ($clHash, 2, "SetDefaultAttributes: role=$role");
 	if ($role ne '' && exists($HMCCU_ATTR->{$role})) {
-		HMCCU_Log ($clHash, 2, 'SetDefaultAttributes: attributes found');
+		HMCCU_Log ($clHash, 2, "Default attributes found for role $role");
+		$clHash->{hmccu}{defaults} = 1;
+		if ($parRef->{mode} eq 'reset') {
+			my @removeAttr = ('ccureadingname', 'ccuscaleval', 'eventMap', 'substexcl',
+				'substitute', 'webCmd', 'widgetOverride'
+			);
+			foreach my $a (@removeAttr) {
+				CommandDeleteAttr (undef, "$clName $a") if (exists($attr{$clName}{$a}));
+			}
+		}
 		foreach my $a (keys %{$HMCCU_ATTR->{$role}}) {
 			CommandAttr (undef, "$clName $a ".$HMCCU_ATTR->{$role}{$a});
 		}
+		$clHash->{hmccu}{defaults} = 0;
 		return 1;
 	}
 	else {
@@ -6623,20 +6608,11 @@ sub HMCCU_IsFlag ($$)
 
 sub HMCCU_GetAttrReadingFormat ($$)
 {
-	my ($clhash, $iohash) = @_;
+	my ($clHash, $ioHash) = @_;
+		
+	my $rfdef = AttrVal ($ioHash->{NAME}, 'ccudef-readingformat', 'datapoint');
 	
-	my $clname = $clhash->{NAME};
-	my $ioname = $iohash->{NAME};
-	my $rfdef = '';
-	
-	if (exists($clhash->{ccutype}) && $clhash->{ccutype} =~ /^HM-CC-VG/) {
-		$rfdef = 'name';
-	}
-	else {
-		$rfdef = AttrVal ($ioname, 'ccudef-readingformat', 'datapoint');
-	}
-	
-	return AttrVal ($clname, 'ccureadingformat', $rfdef);
+	return AttrVal ($clHash->{NAME}, 'ccureadingformat', $rfdef);
 }
 
 ######################################################################
@@ -6666,16 +6642,12 @@ sub HMCCU_GetAttrStripNumber ($)
 		}
 	}
 	
-	my $stripnumber = AttrVal ($hash->{NAME}, 'stripnumber', $snDef);
-	
-	HMCCU_Trace ($hash, 2, "stripnumber = $stripnumber");
-
-	return $stripnumber;
+	return AttrVal ($hash->{NAME}, 'stripnumber', $snDef);
 }
 
 ######################################################################
-# Get attributes substitute and substexcl considering default
-# attribute ccudef-substitute defined in I/O device.
+# Get attribute substitute considering default attribute
+# ccudef-substitute defined in I/O device.
 # Substitute ${xxx} by datapoint value.
 ######################################################################
 
@@ -6897,9 +6869,8 @@ sub HMCCU_HMScriptExt ($$;$$$)
 sub HMCCU_BulkUpdate ($$$$)
 {
 	my ($hash, $reading, $orgval, $subval) = @_;
-	my $name = $hash->{NAME};
 	
-	my $excl = AttrVal ($name, 'substexcl', '');
+	my $excl = AttrVal ($hash->{NAME}, 'substexcl', 'control|pct');
 
 	readingsBulkUpdate ($hash, $reading, ($excl ne '' && $reading =~ /$excl/ ? $orgval : $subval));
 }
@@ -7048,7 +7019,7 @@ sub HMCCU_SetMultipleDatapoints ($$) {
 
 		# Build device address list considering group devices
 		my @addrList = $clHash->{ccuif} eq 'fhem' ? split (',', $clHash->{ccugroup}) : ($add);
-		return -1 if (scalar (@addrList) < 1);
+		return -1 if (scalar(@addrList) < 1);
 		
 		foreach my $a (@addrList) {
 			# Override address and interface of group device with address of group members
@@ -7071,7 +7042,7 @@ sub HMCCU_SetMultipleDatapoints ($$) {
 			}
 
 			my $dptType = HMCCU_GetDatapointAttr ($ioHash, $ccuType, $chn, $dpt, 'type');
-			$v = "'".$v."'" if (defined ($dptType) && $dptType == $HMCCU_TYPE_STRING);
+			$v = "'".$v."'" if (defined($dptType) && $dptType == $HMCCU_TYPE_STRING);
 			my $c = '(datapoints.Get("'.$int.'.'.$add.':'.$chn.'.'.$dpt.'")).State('.$v.");\n";
 
 			if ($dpt =~ /$ccuChange/) {
@@ -7572,11 +7543,17 @@ sub HMCCU_ISO2UTF ($)
 # Check for floating point number
 ######################################################################
 
-sub HMCCU_IsFltNum ($)
+sub HMCCU_IsFltNum ($;$)
 {
-	my ($value) = @_;
-	
-	return defined($value) && $value =~ /^[+-]?\d*\.?\d+(?:(?:e|E)\d+)?$/ ? 1 : 0;
+	my ($value, $flag) = @_;
+	$flag //= 0;	
+
+	if ($flag) {
+		return defined($value) && $value =~ /^[+-]?\d*\.?\d+?$/ ? 1 : 0;
+	}
+	else {
+		return defined($value) && $value =~ /^[+-]?\d*\.?\d+(?:(?:e|E)\d+)?$/ ? 1 : 0;
+	}
 }
 
 ######################################################################
@@ -7751,7 +7728,7 @@ sub HMCCU_GetTimeSpec ($)
 {
 	my ($ts) = @_;
 	
-	return $ts if ($ts =~ /^[0-9]+$/);
+	return $ts if (HMCCU_IsFltNum ($ts, 1));
 	return -1 if ($ts !~ /^[0-9]{2}:[0-9]{2}$/ && $ts !~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/);
 	
 	my (undef, $h, $m, $s)  = GetTimeSpec ($ts);
@@ -8713,6 +8690,7 @@ sub HMCCU_MaxHashEntries ($$)
       	intrpc - No longer supported.<br/>
       	extrpc - No longer supported.<br/>
       	logCommand - Write all set and get commands of all devices to log file with verbose level 3.<br/>
+      	logEnhanced - Messages in FHEM logfile will contain line number and process ID.<br/>
       	logEvents - Write events from CCU into FHEM logfile<br/>
 			logPong - Write log message when receiving pong event if verbose level is at least 3.<br/>
       	noEvents - Ignore events / device updates sent by CCU. No readings will be updated!<br/>

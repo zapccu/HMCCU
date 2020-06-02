@@ -4,7 +4,7 @@
 #
 #  $Id: HMCCUConf.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.8
+#  Version 4.8.002
 #
 #  Configuration parameters for HomeMatic devices.
 #
@@ -247,12 +247,12 @@ use vars qw(%HMCCU_SCRIPTS);
 	},
 	'CLIMATECONTROL_RT_TRANSCEIVER' => {
 		'cmdIcon' => 'auto:sani_heating_automatic manu:sani_heating_manual boost:sani_heating_boost on:general_an off:general_aus',
-		'webCmd' => 'desired-temp',
+		'webCmd' => 'desired-temp:auto:manu:boost:on:off',
 		'widgetOverride' => 'desired-temp:slider,4.5,0.5,30.5,1'
 	},
 	'HEATING_CLIMATECONTROL_TRANSCEIVER' => {
 		'cmdIcon' => 'auto:sani_heating_automatic manu:sani_heating_manual boost:sani_heating_boost on:general_an off:general_aus',
-		'webCmd' => 'desired-temp:auto:manu:boost',
+		'webCmd' => 'desired-temp:auto:manu:boost:on:off',
 		'widgetOverride' => 'desired-temp:slider,4.5,0.5,30.5,1'
 	}
 );
