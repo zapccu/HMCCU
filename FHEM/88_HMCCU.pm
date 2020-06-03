@@ -245,6 +245,7 @@ sub HMCCU_CreateDevice ($$$$$);
 sub HMCCU_DeleteDevice ($);
 sub HMCCU_DeviceDescToStr ($$);
 sub HMCCU_ExecuteRoleCommand ($@);
+sub HMCCU_DisplayWeekProgram ($;$);
 sub HMCCU_ExistsDeviceModel ($$$;$);
 sub HMCCU_FindParamDef ($$$);
 sub HMCCU_FormatDeviceInfo ($);
@@ -1125,9 +1126,9 @@ sub HMCCU_AggregateReadings ($$)
 		my $fcoll = $r->{fcoll} eq 'NAME' ? $cn : AttrVal ($cn, $r->{fcoll}, $cn);
 		
 		# Compare readings
-		foreach my $r (keys %{$ch->{READINGS}}) {
-			next if ($r =~ /^\./ || $r !~ /$r->{fread}/);
-			my $rv = $ch->{READINGS}{$r}{VAL};
+		foreach my $rd (keys %{$ch->{READINGS}}) {
+			next if ($rd =~ /^\./ || $rd !~ /$r->{fread}/);
+			my $rv = $ch->{READINGS}{$rd}{VAL};
 			my $f = 0;
 			
 			if (($r->{fcond} eq 'any' || $r->{fcond} eq 'all') && $rv =~ /$r->{ftrue}/) {
@@ -3435,9 +3436,11 @@ sub HMCCU_GetDeviceConfig ($)
 	# Update FHEM devices
 	foreach my $d (@devList) {
 		my $clHash = $defs{$d};
+		my ($sc, $sd, $cc, $cd) = HMCCU_GetSpecialDatapoints ($clHash);
+		
 		HMCCU_UpdateDevice ($ioHash, $clHash);
 		HMCCU_UpdateDeviceRoles ($ioHash, $clHash);
-		HMCCU_UpdateRoleCommands ($ioHash, $clHash);
+		HMCCU_UpdateRoleCommands ($ioHash, $clHash, $cc);
 	}
 	
 	return ($cDev, $cPar, $cLnk);
@@ -3969,6 +3972,11 @@ sub HMCCU_GetParamValue ($$$$$)
 	my $paramDef = HMCCU_GetParamDef ($hash, $object, $paramset, $parameter);
 	if (defined($paramDef)) {
 		my $type = $paramDef->{TYPE};
+		if (!defined($type)) {
+			my $address = ref($object) eq 'HASH' ? $object->{ADDRESS} : $object;
+			HMCCU_Log ($hash, 2, "Can't get type of $address:$paramset:$parameter");
+			return $value;
+		}
 
 		return $ct{$type}{$value} if (exists($ct{$type}) && exists($ct{$type}{$value}));
 
@@ -4160,7 +4168,7 @@ sub HMCCU_UpdateParamsetReadings ($$$;$)
 	my $clRF = HMCCU_GetAttrReadingFormat ($clHash, $ioHash);
 	my $peer = AttrVal ($clName, 'peer', 'null');
  	my $clInt = $clHash->{ccuif};
-	my ($sc, $sd, $cc, $cd, $ss, $cs) = HMCCU_GetSpecialDatapoints ($clHash);
+	my ($sc, $sd, $cc, $cd) = HMCCU_GetSpecialDatapoints ($clHash);
 
 	readingsBeginUpdate ($clHash);
 	
@@ -5827,6 +5835,11 @@ sub HMCCU_SplitChnAddr ($)
 {
 	my ($addr) = @_;
 
+	if (!defined($addr)) {
+		HMCCU_Log ('HMCCU', 2, stacktraceAsString(undef));
+		return ('', '');
+	}
+	
 	my ($dev, $chn) = split (':', $addr);
 	$chn = '' if (!defined ($chn));
 
@@ -6217,11 +6230,11 @@ sub HMCCU_UpdateRoleCommands ($$;$)
 		next if (!defined($role) || !exists($HMCCU_ROLECMDS->{$role}));
 		
 		foreach my $cmd (keys %{$HMCCU_ROLECMDS->{$role}}) {
-			next if (defined($chnNo) && $chnNo != $channel && $chnNo ne 'd');
+			next if (defined($chnNo) && $chnNo ne '' && $chnNo != $channel && $chnNo ne 'd');
 			my $cmdChn = $channel;
 			
-			$clHash->{hmccu}{roleCmds}{$cmd}{syntax}  = $HMCCU_ROLECMDS->{$role}{$cmd};
-			$clHash->{hmccu}{roleCmds}{$cmd}{role}    = $role;
+			$clHash->{hmccu}{roleCmds}{$cmd}{syntax} = $HMCCU_ROLECMDS->{$role}{$cmd};
+			$clHash->{hmccu}{roleCmds}{$cmd}{role}   = $role;
 
 			my $cnt = 0;
 			my $usage = $cmd;
@@ -6401,6 +6414,39 @@ sub HMCCU_ExecuteRoleCommand ($@)
 }
 
 ######################################################################
+# Get week program(s) as html table
+######################################################################
+
+sub HMCCU_DisplayWeekProgram ($;$)
+{
+	my ($hash, $program) = @_;
+	
+	my @weekDay = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday');
+	
+	return "No data available for week program(s)" if (!exists($hash->{hmccu}{tt}));
+	
+	my $s = '<html>';
+	foreach my $w (sort keys %{$hash->{hmccu}{tt}}) {
+		next if (defined($program) && "$w" ne "$program" && "$program" ne 'all');
+		my $p = $hash->{hmccu}{tt}{$w};
+		$s .= '<p><b>Week Program '.$w.'</b></p><br/><table border="1">';
+		foreach my $d (sort keys %{$p->{ENDTIME}}) {
+			$s .= '<tr><td><b>'.$weekDay[$d].'</b></td>';
+			my $h24 = 0;
+			foreach my $h (sort { $a <=> $b } keys %{$p->{ENDTIME}{$d}}) {
+				$s .= '<td>'.($h24 == 0 ? $p->{ENDTIME}{$d}{$h}.' / '.$p->{TEMPERATURE}{$d}{$h} : '&nbsp;').'</td>';
+				$h24 = 1 if ($h24 == 0 && $p->{ENDTIME}{$d}{$h} eq '24:00');
+			}
+			$s .= '</tr>';
+		}
+		$s .= '</table><br/>';
+	}
+	$s .= '</html>';
+		
+	return $s;
+}
+
+######################################################################
 # Check if value matches parameter definition
 # Parameter t can be a datapoint type or a hash reference to a role
 # command parameter definition.
@@ -6474,7 +6520,14 @@ sub HMCCU_GetSpecialDatapoints ($)
 	my $type = $hash->{TYPE};
 	my $ccutype = $hash->{ccutype};
 	
-	my ($da, $dc) = HMCCU_SplitChnAddr ($hash->{ccuaddr});
+	my $da;
+	my $dc;
+	if (exists($hash->{ccuaddr})) {
+		($da, $dc) = HMCCU_SplitChnAddr ($hash->{ccuaddr});
+	}
+	else {
+		HMCCU_Log ($hash, 2, "No CCU address defined");
+	}
 	my ($sc, $sd, $cc, $cd) = ($dc // '', '', $dc // '', '');
 	my $statedatapoint = AttrVal ($name, 'statedatapoint', '');
 	my $controldatapoint = AttrVal ($name, 'controldatapoint', '');
@@ -6609,9 +6662,16 @@ sub HMCCU_IsFlag ($$)
 sub HMCCU_GetAttrReadingFormat ($$)
 {
 	my ($clHash, $ioHash) = @_;
-		
-	my $rfdef = AttrVal ($ioHash->{NAME}, 'ccudef-readingformat', 'datapoint');
 	
+	my $rfdef;
+		
+	if (HMCCU_IsFlag ($ioHash, 'updGroupMembers') && exists($clHash->{ccutype}) && $clHash->{ccutype} =~ /^HM-CC-VG/) {
+		$rfdef = 'name';
+	}
+	else {
+		$rfdef = AttrVal ($ioHash->{NAME}, 'ccudef-readingformat', 'datapoint');
+	}
+
 	return AttrVal ($clHash->{NAME}, 'ccureadingformat', $rfdef);
 }
 

@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUCHN.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.018
+#  Version 4.4.019
 #
 #  (c) 2020 zap (zap01 <at> t-online <dot> de)
 #
@@ -546,6 +546,10 @@ sub HMCCUCHN_Get ($@)
 	elsif ($opt eq 'defaults') {
 		return HMCCU_GetDefaults ($hash, 0);
 	}
+	elsif ($opt eq 'weekprogram') {
+		my $program = shift @$a;
+		return HMCCU_DisplayWeekProgram ($hash, $program);
+	}
 	else {
 		my $retmsg = "HMCCUCHN: Unknown argument $opt, choose one of defaults:noArg datapoint";
 		
@@ -555,6 +559,8 @@ sub HMCCUCHN_Get ($@)
 		$retmsg .= ":".join(",",@valuelist) if ($valuecount > 0);
 		$retmsg .= " update:noArg deviceInfo:noArg config:noArg".
 			" deviceDesc:noArg paramsetDesc:noArg values:noArg";
+		$retmsg .= ' weekProgram:all,'.join(',', sort keys %{$hash->{hmccu}{tt}})
+			if (exists($hash->{hmccu}{tt}));
 		
 		return $retmsg;
 	}
@@ -565,7 +571,7 @@ sub HMCCUCHN_Get ($@)
 
 =pod
 =item device
-=item summary controls HMCCU client devices for Homematic CCU2 - FHEM integration
+=item summary controls HMCCU client devices for Homematic CCU2/3 - FHEM integration
 =begin html
 
 <a name="HMCCUCHN"></a>
@@ -763,6 +769,9 @@ sub HMCCUCHN_Get ($@)
       </li><br/>
       <li><b>get &lt;name&gt; values</b><br/>
       	Same as 'get update' but using RPC instead of ReGa. 
+      </li><br/>
+      <li><b>get &lt;name&gt; weekProgram [&lt;program-number&gt;|<u>all</u>]</b><br/>
+      	Display week programs. This command is only available if a device supports week programs.
       </li>
    </ul>
    <br/>
