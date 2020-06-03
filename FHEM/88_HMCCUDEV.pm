@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUDEV.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.020
+#  Version 4.4.022
 #
 #  (c) 2020 zap (zap01 <at> t-online <dot> de)
 #
@@ -214,7 +214,7 @@ sub HMCCUDEV_InitDevice ($$)
 			HMCCU_AddDevice ($ioHash, $di, $da, $devHash->{NAME});
 			HMCCU_UpdateDevice ($ioHash, $devHash);
 			HMCCU_UpdateDeviceRoles ($ioHash, $devHash);
-			HMCCU_UpdateRoleCommands ($ioHash, $devHash);
+			HMCCU_UpdateRoleCommands ($ioHash, $devHash, $attr{$devHash->{NAME}}{controlchannel});
 			if (!exists($devHash->{hmccu}{nodefaults}) || $devHash->{hmccu}{nodefaults} == 0) {
 				if (!HMCCU_SetDefaultAttributes ($devHash)) {
 					HMCCU_SetDefaults ($devHash);
@@ -694,6 +694,10 @@ sub HMCCUDEV_Get ($@)
 		$result = HMCCU_GetDefaults ($hash, 0);
 		return $result;
 	}
+	elsif ($opt eq 'weekprogram') {
+		my $program = shift @$a;
+		return HMCCU_DisplayWeekProgram ($hash, $program);
+	}
 	else {
 		my $retmsg = "HMCCUDEV: Unknown argument $opt, choose one of datapoint";
 		
@@ -702,29 +706,12 @@ sub HMCCUDEV_Get ($@)
 		$retmsg .= ':'.join(",", @valuelist) if ($valuecount > 0);
 		$retmsg .= ' defaults:noArg update:noArg config'.
 			' paramsetDesc:noArg deviceDesc:noArg deviceInfo:noArg values:noArg';
+		$retmsg .= ' weekProgram:all,'.join(',', sort keys %{$hash->{hmccu}{tt}})
+			if (exists($hash->{hmccu}{tt}));
 
 		return $retmsg;
 	}
 }
-
-# sub HMCCUDEV_DisplayTT ($)
-# {
-# 	my ($hash) = @_;
-# 	
-# 	my @dayOrder = ('MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY');
-# 	
-# 	return if (!exists($hash->{hmccu}{tt}));
-# 	
-# 	my $s = '<html>';
-# 	foreach my $day (@dayOrder) {
-# 		next if (!exists($hash->{hmccu}{tt}{1}{ENDTIME}{$day}));
-# 		$s .= '<tr>';
-# 
-# 		$s .= '</tr>';
-# 	}
-# 	$s .= '</html>';
-# }
-
 
 1;
 
@@ -900,6 +887,9 @@ sub HMCCUDEV_Get ($@)
       <li><b>get &lt;name&gt; update [{State | <u>Value</u>}]</b><br/>
       	<a href="#HMCCUCHNget">see HMCCUCHN</a>
       </li><br/>
+      <li><b>get &lt;name&gt; weekProgram [&lt;program-number&gt;|<u>all</u>]</b><br/>
+      	Display week programs. This command is only available if a device supports week programs.
+      </li>
    </ul>
    <br/>
    
