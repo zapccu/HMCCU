@@ -4,7 +4,7 @@
 #
 #  $Id: HMCCUConf.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.8.002
+#  Version 4.8.006
 #
 #  Configuration parameters for HomeMatic devices.
 #
@@ -18,6 +18,7 @@ use strict;
 use warnings;
 
 use vars qw(%HMCCU_STATECONTROL);
+use vars qw(%HMCCU_READINGS);
 use vars qw(%HMCCU_ROLECMDS);
 use vars qw(%HMCCU_ATTR);
 use vars qw(%HMCCU_CONVERSIONS);
@@ -92,6 +93,43 @@ use vars qw(%HMCCU_SCRIPTS);
 	'HEATING_CLIMATECONTROL_TRANSCEIVER' => {
 		F => 3, S => 'ACTUAL_TEMPERATURE', C => 'SET_POINT_TEMPERATURE', V => ''
 	}
+);
+
+######################################################################
+# Add or rename readings
+# SC# = Placeholder for state channel
+# CC# = Placeholder for control channel
+######################################################################
+
+%HMCCU_READINGS = (
+	'BLIND' =>
+		'(SC#\.)?LEVEL$:+pct;(CC#\.)?LEVEL$:+pct',
+	'BLIND_VIRTUAL_RECEIVER' =>
+		'(SC#\.)?LEVEL$:+pct;(CC#\.)?LEVEL$:+pct',
+	'DIMMER' =>
+		'(SC#\.)?LEVEL$:+pct;(CC#\.)?LEVEL$:+pct',
+	'DIMMER_VIRTUAL_RECEIVER' =>
+		'(SC#\.)?LEVEL$:+pct;(CC#\.)?LEVEL$:+pct',
+	'WEATHER_TRANSMIT' =>
+		'(SC#\.)?TEMPERATURE$:+measured-temp', 
+	'THERMALCONTROL_TRANSMIT' =>
+		'(SC#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
+		'(SC#\.)?SET_TEMPERATURE$:+desired-temp;'.
+		'(CC#\.)?SET_TEMPERATURE$:+desired-temp',
+	'CLIMATECONTROL_RT_TRANSCEIVER' =>
+		'(SC#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
+		'(SC#\.)?SET_TEMPERATURE$:+desired-temp;'.
+		'(CC#\.)?SET_TEMPERATURE$:+desired-temp',
+	'HEATING_CLIMATECONTROL_TRANSCEIVER' =>
+		'(SC#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
+		'(SC#\.)?SET_POINT_TEMPERATURE$:+desired-temp;'.
+		'(CC#\.)?SET_POINT_TEMPERATURE$:+desired-temp',
+	'DEFAULT' =>
+		'([0-9]{1,2}\.)?LEVEL$:+pct;'.
+		'([0-9]{1,2}\.)?SET_TEMPERATURE$:+desired-temp;'.
+		'([0-9]{1,2}\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
+		'([0-9]{1,2}\.)?SET_POINT_TEMPERATURE$:+desired-temp;'.
+		'([0-9]{1,2}\.)?ACTUAL_HUMIDITY$:+humidity'
 );
 
 ######################################################################
@@ -212,15 +250,18 @@ use vars qw(%HMCCU_SCRIPTS);
 
 %HMCCU_ATTR = (
 	'BLIND' => {
-		'webCmd' => 'up:down:stop:pct',
+		'substexcl' => 'pct',
+		'webCmd' => 'open:close:stop:pct',
 		'widgetOverride' => 'pct:slider,0,10,100'
 	},
 	'BLIND_VIRTUAL_RECEIVER' => {
-		'webCmd' => 'up:down:stop:pct',
+		'substexcl' => 'pct',
+		'webCmd' => 'open:close:stop:pct',
 		'widgetOverride' => 'pct:slider,0,10,100'
 	},
 	'SHUTTER_VIRTUAL_RECEIVER' => {
-		'webCmd' => 'up:down:stop:pct',
+		'substexcl' => 'pct',
+		'webCmd' => 'open:close:stop:pct',
 		'widgetOverride' => 'pct:slider,0,10,100'
 	},
 	'SWITCH' => {
@@ -232,25 +273,29 @@ use vars qw(%HMCCU_SCRIPTS);
 		'widgetOverride' => 'toggle:uzsuToggle,off,on'
 	},
 	'DIMMER' => {
+		'substexcl' => 'pct',
 		'webCmd' => 'pct',
 		'widgetOverride' => 'pct:slider,0,10,100'
 	},
 	'DIMMER_VIRTUAL_RECEIVER' => {
-		'ccureadingname' => 'LEVEL$:pct',
+		'substexcl' => 'pct',
 		'webCmd' => 'pct',
 		'widgetOverride' => 'pct:slider,0,10,100'
 	},
 	'THERMALCONTROL_TRANSMIT' => {
+		'substexcl' => 'desired-temp',
 		'cmdIcon' => 'auto:sani_heating_automatic manu:sani_heating_manual boost:sani_heating_boost on:general_an off:general_aus',
 		'webCmd' => 'desired-temp:auto:manu:boost:on:off',
 		'widgetOverride' => 'desired-temp:slider,4.5,0.5,30.5,1'
 	},
 	'CLIMATECONTROL_RT_TRANSCEIVER' => {
+		'substexcl' => 'desired-temp',
 		'cmdIcon' => 'auto:sani_heating_automatic manu:sani_heating_manual boost:sani_heating_boost on:general_an off:general_aus',
 		'webCmd' => 'desired-temp:auto:manu:boost:on:off',
 		'widgetOverride' => 'desired-temp:slider,4.5,0.5,30.5,1'
 	},
 	'HEATING_CLIMATECONTROL_TRANSCEIVER' => {
+		'substexcl' => 'desired-temp',
 		'cmdIcon' => 'auto:sani_heating_automatic manu:sani_heating_manual boost:sani_heating_boost on:general_an off:general_aus',
 		'webCmd' => 'desired-temp:auto:manu:boost:on:off',
 		'widgetOverride' => 'desired-temp:slider,4.5,0.5,30.5,1'
@@ -267,11 +312,11 @@ use vars qw(%HMCCU_SCRIPTS);
 	},
 	'KEY' => {
 		'PRESS_SHORT' => { '1' => 'pressed', 'true' => 'pressed' },
-		'PRESS_LONG' => { '1' => 'pressed', 'true' => 'pressed' }
+		'PRESS_LONG' =>  { '1' => 'pressed', 'true' => 'pressed' }
 	},
 	'KEY_TRANSCEIVER' => {
 		'PRESS_SHORT' => { '1' => 'pressed', 'true' => 'pressed' },
-		'PRESS_LONG' => { '1' => 'pressed', 'true' => 'pressed' }
+		'PRESS_LONG' =>  { '1' => 'pressed', 'true' => 'pressed' }
 	},
 	'SHUTTER_CONTACT' => {
 		'STATE' => { '0' => 'closed', '1' => 'open', 'false' => 'closed', 'true' => 'open' }
@@ -280,10 +325,10 @@ use vars qw(%HMCCU_SCRIPTS);
 		'STATE' => { '0' => 'closed', '1' => 'open', 'false' => 'closed', 'true' => 'open' }
 	},
 	'ROTARY_HANDLE_SENSOR' => {
-		'STATE' => { '0' => 'closed', '1' => 'open', 'false' => 'closed', 'true' => 'open' }
+		'STATE' => { '0' => 'closed', '1' => 'tilted', '2' => 'open' }
 	},
 	'ROTARY_HANDLE_TRANSCEIVER' => {
-		'STATE' => { '0' => 'closed', '1' => 'open', 'false' => 'closed', 'true' => 'open' }
+		'STATE' => { '0' => 'closed', '1' => 'tilted', '2' => 'open' }
 	},
 	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
 		'STATE' => { '0' => 'ok', '1' => 'alarm', 'false' => 'ok', 'true' => 'alarm' }
@@ -295,22 +340,30 @@ use vars qw(%HMCCU_SCRIPTS);
 		'STATE' => { '0' => 'off', 'false' => 'off', '1' => 'on', 'true' => 'on', 'off' => '0', 'on' => '1' },
 	},
 	'BLIND' => {
-		'LEVEL' => { '0' => 'closed', '100' => 'open', 'close' => '0', 'open' => '100' }
+		'LEVEL' =>     { '0' => 'closed', '100' => 'open', 'close' => '0', 'open' => '100' },
+		'DIRECTION' => { '0' => 'none', '1' => 'up', '2' => 'down' },
+		'WORKING' =>   { '0' => 'no', 'false' => 'no', '1' => 'yes', 'true' => 'yes' }
 	},
 	'BLIND_VIRTUAL_RECEIVER' => {
-		'LEVEL' => { '0' => 'closed', '100' => 'open', 'close' => '0', 'open' => '100' }
+		'LEVEL' =>     { '0' => 'closed', '100' => 'open', 'close' => '0', 'open' => '100' },
+		'DIRECTION' => { '0' => 'none', '1' => 'up', '2' => 'down' },
+		'WORKING' =>   { '0' => 'no', 'false' => 'no', '1' => 'yes', 'true' => 'yes' }
 	},
 	'SHUTTER_VIRTUAL_RECEIVER' => {
 		'LEVEL' => { '0' => 'closed', '100' => 'open', 'close' => '0', 'open' => '100' }
 	},
 	'DIMMER' => {
-		'LEVEL' => { '0' => 'off', '100' => 'on', 'off' => '0', 'on' => '100' }
+		'LEVEL' =>     { '0' => 'off', '100' => 'on', 'off' => '0', 'on' => '100' },
+		'DIRECTION' => { '0' => 'none', '1' => 'up', '2' => 'down' },
+		'WORKING' =>   { '0' => 'no', 'false' => 'no', '1' => 'yes', 'true' => 'yes' }
 	},
 	'DIMMER_VIRTUAL_RECEIVER' => {
-		'LEVEL' => { '0' => 'off', '100' => 'on', 'off' => '0', 'on' => '100' }
+		'LEVEL' =>     { '0' => 'off', '100' => 'on', 'off' => '0', 'on' => '100' },
+		'DIRECTION' => { '0' => 'none', '1' => 'up', '2' => 'down' },
+		'WORKING' =>   { '0' => 'no', 'false' => 'no', '1' => 'yes', 'true' => 'yes' }
 	},
 	'THERMALCONTROL_TRANSMIT' => {
-		'SET_TEMPERATURE' => { '4.5' => 'off', '30.5' => 'on' },
+		'SET_TEMPERATURE' =>       { '4.5' => 'off', '30.5' => 'on' },
 		'WINDOW_OPEN_REPORTING' => { '0' => 'closed', '1' => 'open', 'false' => 'closed', 'true' => 'open' }
 	},
 	'CLIMATECONTROL_RT_TRANSCEIVER' => {
@@ -318,13 +371,13 @@ use vars qw(%HMCCU_SCRIPTS);
 	},
 	'HEATING_CLIMATECONTROL_TRANSCEIVER' => {
 		'SET_POINT_TEMPERATURE' => { '4.5' => 'off', '30.5' => 'on' },
-		'WINDOW_STATE' => { '0' => 'closed', '1' => 'open', 'false' => 'closed', 'true' => 'open' }
+		'WINDOW_STATE' =>          { '0' => 'closed', '1' => 'open', 'false' => 'closed', 'true' => 'open' }
 	},
 	'DEFAULT' => {
 		'AES_KEY' => { '0' => 'off', 'false' => 'off', '1' => 'on', 'true' => 'on' },
 		'LOW_BAT' => { '0' => 'ok', 'false' => 'ok', '1' => 'low', 'true' => 'low' },
-		'LOWBAT' => { '0' => 'ok', 'false' => 'ok', '1' => 'low', 'true' => 'low' },
-		'STATE' => { '0' => 'false', '1' => 'true' },
+		'LOWBAT' =>  { '0' => 'ok', 'false' => 'ok', '1' => 'low', 'true' => 'low' },
+		'STATE' =>   { '0' => 'false', '1' => 'true' },
 		'UNREACH' => { '0' => 'alive', 'false' => 'alive', '1' => 'dead', 'true' => 'dead' }
 	}
 );
@@ -770,9 +823,8 @@ use vars qw(%HMCCU_SCRIPTS);
 
 %HMCCU_DEV_DEFAULTS = (
    "CCU2" => {
-   _description     => "HomeMatic CCU2",
-   "ccudef-readingformat" => 'datapoint',
-   "ccudef-readingname"   => '^(.+\.)?BATTERY_STATE\$:batteryLevel;^(.+\.)?TEMPERATURE\$:+temperature;^(.+\.)?SET_TEMPERATURE\$:+desired-temp;^(.+\.)?HUMIDITY\$:+humidity;^(.+\.)?LEVEL\$:+pct;^(.+\.)?CONTROL_MODE\$:+controlMode'
+   _description     => "HomeMatic CCU",
+   "ccudef-readingformat" => 'datapoint'
    },
 	"HM-Sec-SCo|HM-Sec-SC|HM-Sec-SC-2|HMIP-SWDO" => {
 	_description     => "Tuer/Fensterkontakt optisch und magnetisch",
