@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCU.pm 18745 2019-02-26 17:33:23Z zap $
 #
-#  Version 4.4.048
+#  Version 4.4.049
 #
 #  Module for communication between FHEM and Homematic CCU2/3.
 #
@@ -55,9 +55,9 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '4.4.048';
+my $HMCCU_VERSION = '4.4.049';
 
-# Timeout for CCU requests
+# Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
 
 # ReGa Ports
@@ -1614,7 +1614,7 @@ sub HMCCU_Get ($@)
 	$opt = lc($opt);
 
 	my $options = "create defaults:noArg exportDefaults dutycycle:noArg vars update".
-		" updateCCU deviceDesc paramsetDesc firmware rpcEvents:noArg rpcState:noArg deviceInfo".
+		" updateCCU paramsetDesc firmware rpcEvents:noArg rpcState:noArg deviceInfo".
 		" ccuMsg:alarm,service ccuConfig:noArg";
 
 	my $usage = "HMCCU: Unknown argument $opt, choose one of $options";
@@ -1650,8 +1650,10 @@ sub HMCCU_Get ($@)
 	}
 	elsif ($opt eq 'deviceinfo') {
 		my $device = shift @$a // return HMCCU_SetError ($hash, "Usage: get $name $opt {device}");
-		return HMCCU_SetError ($hash, -1) if (!HMCCU_IsValidDeviceOrChannel ($hash, $device, $HMCCU_FL_ALL));
-		return HMCCU_ExecuteGetDeviceInfoCommand ($hash, $hash, $device);
+		my ($int, $add, $chn, $dpt, $nam, $flags) = HMCCU_ParseObject ($hash, $device,
+			$HMCCU_FLAG_FULLADDR);
+		return HMCCU_SetError ($hash, -1) if (!($flags & $HMCCU_FLAG_ADDRESS));
+		return HMCCU_ExecuteGetDeviceInfoCommand ($hash, $hash, $add);
 	}
 	elsif ($opt eq 'rpcevents') {
 		$result = '';
@@ -1832,16 +1834,6 @@ sub HMCCU_Get ($@)
 		}
 
 		return HMCCU_SetState ($hash, 'OK', $ccureadings ? undef : $result);
-	}
-	elsif ($opt eq 'devicedesc') {
-		$usage = "Usage: get $name $opt {device|channel}";
-		my $ccuobj = shift @$a // return HMCCU_SetError ($hash, $usage);
-		my ($int, $add, $chn, $dpt, $nam, $flags) = HMCCU_ParseObject ($hash, $ccuobj,
-			$HMCCU_FLAG_FULLADDR);
-		return HMCCU_SetError ($hash, 'Invalid device or address')
-			if (!($flags & $HMCCU_FLAG_ADDRESS));
-		$result = HMCCU_DeviceDescToStr ($hash, $add);
-		return defined($result) ? $result : HMCCU_SetError ($hash, "Can't get device description");
 	}
 	elsif ($opt eq 'paramsetdesc') {
 		$usage = "Usage: get $name $opt {device|channel}";
@@ -2187,26 +2179,27 @@ sub HMCCU_GetReadingName ($$$$$$$;$)
 	my @rnlist;
 
 	$rf //= HMCCU_GetAttrReadingFormat ($hash, $ioHash);
-	my $role = HMCCU_GetChannelRole ($hash, $c);
-	my $sr = $role eq '' ? $HMCCU_READINGS->{DEFAULT} : $HMCCU_READINGS->{$role};
-	$sr =~ s/SC#\./$hash->{hmccu}{state}{chn}\./g if (exists($hash->{hmccu}{state}{chn}));
-	$sr =~ s/CC#\./$hash->{hmccu}{control}{chn}\./g if (exists($hash->{hmccu}{control}{chn}));
-	
-# 	my $sr = '([0-9]{1,2}\.)?LEVEL$:+pct;'.
-# 		'([0-9]{1,2}\.)?SET_TEMPERATURE$:+desired-temp;'.
-# 		'([0-9]{1,2}\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
-# 		'([0-9]{1,2}\.)?SET_POINT_TEMPERATURE$:+desired-temp;'.
-# 		'([0-9]{1,2}\.)?ACTUAL_HUMIDITY$:+humidity';
-# 	if (exists($hash->{hmccu}{control}{chn}) && $hash->{hmccu}{control}{chn} ne '' &&
-# 		exists($hash->{hmccu}{control}{dpt}) && $hash->{hmccu}{control}{dpt} eq $d) {
-# 		$sr =~ s/\(\[0-9\]\{1,2\}\\\.\)\?$d/\($hash->{hmccu}{control}{chn}\\\.\)\?$d/g;
-# 	}
-# 	elsif (exists($hash->{hmccu}{state}{chn}) && $hash->{hmccu}{state}{chn} ne '' &&
-# 		exists($hash->{hmccu}{state}{dpt}) && $hash->{hmccu}{state}{dpt} eq $d) {
-# 		$sr =~ s/\(\[0-9\]\{1,2\}\\\.\)\?$d/\($hash->{hmccu}{state}{chn}\\\.\)\?$d/g;
-# 	}
-	my $asr = AttrVal ($name, 'ccureadingname', '');
-	$sr .= ';'.$asr if ($asr ne '');
+
+	my @srl = ();
+	my $crn = AttrVal ($name, 'ccureadingname', '');
+	push @srl, $crn if ($crn ne '');
+	if (exists($hash->{hmccu}{control}{chn}) && "$c" eq $hash->{hmccu}{control}{chn}) {
+		my $role = HMCCU_GetChannelRole ($hash, $c);
+		if ($role ne '' && exists($HMCCU_READINGS->{$role})) {
+			$crn = $HMCCU_READINGS->{$role};
+			$crn =~ s/CC#\./$c\./g;
+			push @srl, $crn;
+		}
+	}
+	if (exists($hash->{hmccu}{state}{chn}) && "$c" eq $hash->{hmccu}{state}{chn}) {
+		my $role = HMCCU_GetChannelRole ($hash, $c);
+		if ($role ne '' && exists($HMCCU_READINGS->{$role})) {
+			$crn = $HMCCU_READINGS->{$role};
+			$crn =~ s/SC#\./$c\./g;
+			push @srl, $crn;
+		}
+	}
+	my $sr = join (';', @srl);
 	
 	HMCCU_Trace ($hash, 2, "sr=$sr");
 	
@@ -8836,11 +8829,8 @@ sub HMCCU_MaxHashEntries ($$)
       <li><b>get &lt;name&gt; defaults</b><br/>
       	List device types and channels with default attributes available.
       </li><br/>
-      <li><b>get &lt;name&gt; deviceDesc {&lt;device&gt;|&lt;channel&gt;}</b><br/>
-         Get description of CCU device or channel.
-      </li><br/>
-      <li><b>get &lt;name&gt; deviceinfo &lt;device-name&gt;</b><br/>
-         List device channels and datapoints. 
+      <li><b>get &lt;name&gt; deviceinfo &lt;device-name-or-address&gt;</b><br/>
+         List device channels, datapoints and the device description. 
       </li><br/>
       <li><b>get &lt;name&gt; create &lt;devexp&gt; [t={chn|<u>dev</u>|all}]
       	[p=&lt;prefix&gt;] [s=&lt;suffix&gt;] [f=&lt;format&gt;] [defattr]  
