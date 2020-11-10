@@ -3354,7 +3354,7 @@ sub HMCCU_GetChannelRole ($;$)
 		else {
 			my ($sc, $sd, $cc, $cd) = HMCCU_GetSpecialDatapoints ($clHash);
 			$chnNo = $cc;
-		}	
+		}
 	}
 	if (defined($chnNo) && $chnNo ne '') {
 		foreach my $role (split(',', $clHash->{hmccu}{role})) {
@@ -6123,6 +6123,7 @@ sub HMCCU_GetAttribute ($$$$)
 
 ######################################################################
 # Set default attributes for client device.
+# Optionally delete obsolete attributes.
 ######################################################################
 
 sub HMCCU_SetDefaultAttributes ($;$)
@@ -6133,9 +6134,10 @@ sub HMCCU_SetDefaultAttributes ($;$)
 	$parRef //= { mode => 'update', role => undef, ctrlChn => undef };
 	my $role = $parRef->{role} // HMCCU_GetChannelRole ($clHash, $parRef->{ctrlChn});
 
-	if ($role ne '' && exists($HMCCU_ATTR->{$role})) {
-		HMCCU_Log ($clHash, 2, "Default attributes found for role $role");
+	if ($role ne '') {
 		$clHash->{hmccu}{semDefaults} = 1;
+		
+		# Delete obsolete attributes
 		if ($parRef->{mode} eq 'reset') {
 			my @removeAttr = ('ccureadingname', 'ccuscaleval', 'eventMap',
 				'substitute', 'webCmd', 'widgetOverride'
@@ -6144,9 +6146,14 @@ sub HMCCU_SetDefaultAttributes ($;$)
 				CommandDeleteAttr (undef, "$clName $a") if (exists($attr{$clName}{$a}));
 			}
 		}
-		foreach my $a (keys %{$HMCCU_ATTR->{$role}}) {
-			CommandAttr (undef, "$clName $a ".$HMCCU_ATTR->{$role}{$a});
+		
+		# Set additional attributes
+		if (exists($HMCCU_ATTR->{$role})) {
+			foreach my $a (keys %{$HMCCU_ATTR->{$role}}) {
+				CommandAttr (undef, "$clName $a ".$HMCCU_ATTR->{$role}{$a});
+			}
 		}
+		
 		$clHash->{hmccu}{semDefaults} = 0;
 		return 1;
 	}
@@ -8922,10 +8929,11 @@ sub HMCCU_MaxHashEntries ($$)
          format identifiers which are substituted by corresponding values of the CCU device or
          channel:<br/>
          %n = CCU object name (channel or device)<br/>
-         %d = CCU device name, %a = CCU address<br/>
+         %d = CCU device name<br/>
+         %a = CCU address<br/>
          In addition a list of default attributes for the created client devices can be specified.
          If option 'defattr' is specified HMCCU tries to set default attributes for device.
-         This is not necessary of HMCCU is able to detect the role of a device or channel.
+         This is not necessary because HMCCU is able to detect the role of a device or channel.
          With option 'duplicates' HMCCU will overwrite existing devices and/or create devices 
          for existing device addresses. Option 'save' will save FHEM config after device definition.
       </li><br/>
