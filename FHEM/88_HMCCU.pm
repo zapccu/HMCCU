@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCU.pm 18745 2019-02-26 17:33:23Z zap $
 #
-#  Version 4.4.051
+#  Version 4.4.052
 #
 #  Module for communication between FHEM and Homematic CCU2/3.
 #
@@ -41,22 +41,23 @@ use SetExtensions;
 use HMCCUConf;
 
 # Import configuration data
-my $HMCCU_STATECONTROL = \%HMCCUConf::HMCCU_STATECONTROL;
-my $HMCCU_READINGS     = \%HMCCUConf::HMCCU_READINGS;
-my $HMCCU_ROLECMDS  = \%HMCCUConf::HMCCU_ROLECMDS;
-my $HMCCU_GETROLECMDS  = \%HMCCUConf::HMCCU_GETROLECMDS;
-my $HMCCU_ATTR         = \%HMCCUConf::HMCCU_ATTR;
-my $HMCCU_CONVERSIONS  = \%HMCCUConf::HMCCU_CONVERSIONS;
-my $HMCCU_CHN_DEFAULTS = \%HMCCUConf::HMCCU_CHN_DEFAULTS;
-my $HMCCU_DEV_DEFAULTS = \%HMCCUConf::HMCCU_DEV_DEFAULTS;
-my $HMCCU_SCRIPTS      = \%HMCCUConf::HMCCU_SCRIPTS;
+my $HMCCU_CONFIG_VERSION = $HMCCUConf::HMCCU_CONFIG_VERSION;
+my $HMCCU_STATECONTROL   = \%HMCCUConf::HMCCU_STATECONTROL;
+my $HMCCU_READINGS       = \%HMCCUConf::HMCCU_READINGS;
+my $HMCCU_ROLECMDS       = \%HMCCUConf::HMCCU_ROLECMDS;
+my $HMCCU_GETROLECMDS    = \%HMCCUConf::HMCCU_GETROLECMDS;
+my $HMCCU_ATTR           = \%HMCCUConf::HMCCU_ATTR;
+my $HMCCU_CONVERSIONS    = \%HMCCUConf::HMCCU_CONVERSIONS;
+my $HMCCU_CHN_DEFAULTS   = \%HMCCUConf::HMCCU_CHN_DEFAULTS;
+my $HMCCU_DEV_DEFAULTS   = \%HMCCUConf::HMCCU_DEV_DEFAULTS;
+my $HMCCU_SCRIPTS        = \%HMCCUConf::HMCCU_SCRIPTS;
 
 # Custom configuration data
 my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '4.4.051';
+my $HMCCU_VERSION = '4.4.052';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -460,6 +461,7 @@ sub HMCCU_Define ($$)
 	}
 
 	$hash->{version}         = $HMCCU_VERSION;
+	$hash->{config}          = $HMCCU_CONFIG_VERSION;
 	$hash->{ccutype}         = 'CCU2/3';
 	$hash->{RPCState}        = 'inactive';
 	$hash->{NOTIFYDEV}       = 'global,TYPE=(HMCCU|HMCCUDEV|HMCCUCHN)';
@@ -3587,8 +3589,10 @@ sub HMCCU_DeviceDescToStr ($$)
 		$devDesc = HMCCU_GetDeviceDesc ($ioHash, $a, $iface);
 		return undef if (!defined($devDesc));
 
+		my $channelType = $devDesc->{TYPE};
+		my $status = exists($HMCCU_STATECONTROL->{$channelType}) ? ' known' : '';
 		$result .= $a eq $devAddr ? "Device $a" : "Channel $a";
-		$result .= " $devDesc->{_name} [$devDesc->{TYPE}]\n";
+		$result .= " $devDesc->{_name} [$channelType]$status\n";
 		foreach my $n (sort keys %{$devDesc}) {
 			next if ($n =~ /^_/ || $n =~ /^(ADDRESS|TYPE|INDEX|VERSION)$/ ||
 				!defined($devDesc->{$n}) || $devDesc->{$n} eq '');
