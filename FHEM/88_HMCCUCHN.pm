@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUCHN.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.033
+#  Version 4.4.034
 #
 #  (c) 2020 zap (zap01 <at> t-online <dot> de)
 #
@@ -48,7 +48,7 @@ sub HMCCUCHN_Initialize ($)
 
 	$hash->{AttrList} = 'IODev ccucalculate '.
 		'ccuflags:multiple-strict,ackState,logCommand,noReadings,trace,showMasterReadings,showLinkReadings,showDeviceReadings,showServiceReadings '.
-		'ccureadingfilter:textField-long '.
+		'ccureadingfilter:textField-long statedatapoint controldatapoint '.
 		'ccureadingformat:name,namelc,address,addresslc '.
 		'ccureadingname:textField-long ccuSetOnChange ccuReadingPrefix '.
 		'ccuscaleval ccuverify:0,1,2 ccuget:State,Value '.

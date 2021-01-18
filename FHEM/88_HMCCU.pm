@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCU.pm 18745 2019-02-26 17:33:23Z zap $
 #
-#  Version 4.4.058
+#  Version 4.4.059
 #
 #  Module for communication between FHEM and Homematic CCU2/3.
 #
@@ -3423,7 +3423,7 @@ sub HMCCU_SetSCAttributes ($$;$)
 	my $dpReadCnt  = HMCCU_GetValidDatapoints ($clHash, $ccuType, $dc, 5, \@dpRead);
 
 	# Detect device and initialize attribute lists for statedatapoint and controldatapoint
-	my @userattr = ($modules{$clHash->{TYPE}}{AttrList});
+	my @userattr = grep (!/statedatapoint|controldatapoint/, split(' ', $modules{$clHash->{TYPE}}{AttrList}));
 	if (defined($detect) && $detect->{level} > 0) {
 		push @userattr, 'statedatapoint:select,'.
 			join(',', map { $_->{channel}.'.'.$_->{datapoint} } @{$detect->{stateRoles}})

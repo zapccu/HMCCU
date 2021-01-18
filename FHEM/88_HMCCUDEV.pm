@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUDEV.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.040
+#  Version 4.4.041
 #
 #  (c) 2020 zap (zap01 <at> t-online <dot> de)
 #
@@ -52,8 +52,8 @@ sub HMCCUDEV_Initialize ($)
 		'ccureadingformat:name,namelc,address,addresslc,datapoint,datapointlc '.
 		'ccureadingname:textField-long ccuSetOnChange ccuReadingPrefix '.
 		'ccuget:State,Value ccuscaleval ccuverify:0,1,2 disable:0,1 '.
-		'hmstatevals:textField-long statevals substexcl substitute:textField-long statechannel '.
-		'controlchannel stripnumber peer:textField-long traceFilter '.
+		'hmstatevals:textField-long statevals substexcl substitute:textField-long statechannel statedatapoint '.
+		'controlchannel controldatapoint stripnumber peer:textField-long traceFilter '.
 		$readingFnAttributes;
 }
 
