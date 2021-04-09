@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUDEV.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.044
+#  Version 4.4.045
 #
 #  (c) 2021 zap (zap01 <at> t-online <dot> de)
 #
@@ -211,18 +211,12 @@ sub HMCCUDEV_InitDevice ($$)
 
 		return -2 if (!defined($detect) || $detect->{level} == 0);   # Device not detected
 
-		my $si = HMCCU_GetSCInfo ($detect, 0);	# State info
-		my $ci = HMCCU_GetSCInfo ($detect, 1);	# Control info
-		return -2 if (!defined($si) && !defined($ci));
-		
-		my $chn = $detect->{defCCh} != -1 ? $detect->{defCCh} : $detect->{defSCh};
-		my $dpt = defined($ci) ? $ci->{datapoint} : $si->{datapoint};
-# 		my $role = defined($ci) ? $ci->{role} : $si->{role};  
-		
-		HMCCU_UpdateRoleCommands ($ioHash, $devHash, $chn);
-		HMCCU_UpdateAdditionalCommands ($ioHash, $devHash, $chn, $dpt);
+		if (!HMCCU_SetDefaultSCDatapoints ($ioHash, $devHash, $detect)) {
+			HMCCU_Log ($devHash, 2, "Cannot set default state- and control datapoints");
+		}
 
 		if (!exists($devHash->{hmccu}{nodefaults}) || $devHash->{hmccu}{nodefaults} == 0) {
+			my $chn = $detect->{defCCh} != -1 ? $detect->{defCCh} : $detect->{defSCh};
 			if (!HMCCU_SetDefaultAttributes ($devHash, {
 				mode => 'update', role => undef, roleChn => $chn,
 			})) {
@@ -317,8 +311,22 @@ sub HMCCUDEV_Attr ($@)
 			return "Device is read only" if ($clHash->{readonly} eq 'yes');
 		}
 		elsif ($attrname =~ /^(state|control)(channel|datapoint)$/) {
-			return "Invalid value $attrval"
-				if (!HMCCU_SetSCDatapoints ($clHash, $attrname, $attrval));
+			my $chn = $attrval;
+			if ($attrname eq 'statedatapoint' || $attrname eq 'controldatapoint') {
+				if ($attrval =~ /^([0-9]{1,2})\.(.+)$/) {
+					$chn = $1;
+				}
+				else {
+					return "Attribute value must be in format channel.datapoint";
+				}
+			}
+			else {
+				return "Attribute value must be a valid channel number" if (!HMCCU_IsIntNum ($attrval));
+				$chn = $attrval;
+			}
+
+			my $role = HMCCU_GetChannelRole ($clHash, $chn);
+			return "Invalid value $attrval" if (!HMCCU_SetSCDatapoints ($clHash, $attrname, $attrval, $role));
 			if ($init_done && exists($clHash->{hmccu}{control}{chn}) && $clHash->{hmccu}{control}{chn} ne '') {
 				HMCCU_UpdateRoleCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn});
 				HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn}, $clHash->{hmccu}{control}{dpt})
@@ -333,18 +341,13 @@ sub HMCCUDEV_Attr ($@)
 			delete $clHash->{hmccu}{roleCmds}
 				if (exists($clHash->{hmccu}{roleCmds}) &&
 					(!exists($clHash->{hmccu}{control}{chn}) || $clHash->{hmccu}{control}{chn} eq ''));
+			if ($init_done) {
+				if (!HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash)) {
+					HMCCU_Log ($clHash, 2, "Cannot set default state- and control datapoints");
+				}
+			}
 		}
 	}
-
-# 	if ($init_done && $attrname =~ /^(statechannel|controlchannel|statedatapoint|controldatapoint)$/) {
-# 		my ($sc, $sd, $cc, $cd, $sdCnt, $cdCnt) = HMCCU_GetSCDatapoints ($ioHash);
-# 		if ($cdCnt < 2) {
-# 			HMCCU_UpdateRoleCommands ($ioHash, $clHash, $cc);
-# 			HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $cc, $cd);
-# 		}
-# 	}
-
-# 	HMCCU_RefreshReadings ($clHash) if ($init_done);
 	
 	return;
 }

@@ -4,7 +4,7 @@
 #
 #  $Id: HMCCUConf.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.8.022
+#  Version 4.8.025
 #
 #  Configuration parameters for HomeMatic devices.
 #
@@ -28,7 +28,7 @@ use vars qw(%HMCCU_CHN_DEFAULTS);
 use vars qw(%HMCCU_DEV_DEFAULTS);
 use vars qw(%HMCCU_SCRIPTS);
 
-$HMCCU_CONFIG_VERSION = '4.8.022';
+$HMCCU_CONFIG_VERSION = '4.8.025';
 
 ######################################################################
 # Map subtype to default role. Subtype is only available for HMIP
@@ -74,10 +74,13 @@ $HMCCU_CONFIG_VERSION = '4.8.022';
 		F => 3, S => 'PRESENCE_DETECTION_STATE', C => 'PRESENCE_DETECTION_ACTIVE', V => 'on:1,off:0', P => 2
 	},
 	'SMOKE_DETECTOR' => {
-		F => 3, S => 'BidCos-RF:STATE,SMOKE_DETECTOR_ALARM_STATUS', C => '', V => '', P => 2
+		F => 3, S => 'BidCos-RF:STATE,SMOKE_DETECTOR_ALARM_STATUS', C => 'HmIP-RF:SMOKE_DETECTOR_COMMAND', V => '', P => 2
 	},
 	'LUXMETER' => {
 		F => 3, S => 'LUX', C => '', V => '', P => 2
+	},
+	'BRIGHTNESS_TRANSMITTER' => {
+		F => 3, S => 'CURRENT_ILLUMINATION', C => '', V => '', P => 2
 	},
 	'POWERMETER' => {
 		F => 3, S => 'CURRENT', C => '', V => '', P => 1
@@ -355,12 +358,12 @@ $HMCCU_CONFIG_VERSION = '4.8.022';
 		'cmdIcon' => 'on:general_an off:general_aus'
 	},
 	'KEY' => {
-		'event-on-update-reading' => 'PRESS',
+		'event-on-update-reading' => 'PRESS.*',
 		'cmdIcon' => 'press:taster',
 		'webCmd' => 'press'
 	},
 	'KEY_TRANSCEIVER' => {
-		'event-on-update-reading' => 'PRESS',
+		'event-on-update-reading' => 'PRESS.*',
 		'cmdIcon' => 'press:taster',
 		'webCmd' => 'press'
 	},

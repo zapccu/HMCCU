@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUCHN.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.036
+#  Version 4.4.037
 #
 #  (c) 2021 zap (zap01 <at> t-online <dot> de)
 #
@@ -169,15 +169,9 @@ sub HMCCUCHN_InitDevice ($$)
 		
 		return -2 if (!defined($detect) || $detect->{level} == 0);   # Device not detected
 
-		my $si = HMCCU_GetSCInfo ($detect, 0);
-		my $ci = HMCCU_GetSCInfo ($detect, 1);
-		return -2 if (!defined($si) && !defined($ci));
-
-		my $chn = $detect->{defCCh} != -1 ? $detect->{defCCh} : $detect->{defSCh};
-		my $dpt = defined($ci) ? $ci->{datapoint} : $si->{datapoint}; 
-		
-		HMCCU_UpdateRoleCommands ($ioHash, $devHash, $chn);
-		HMCCU_UpdateAdditionalCommands ($ioHash, $devHash, $chn, $dpt);
+		if (!HMCCU_SetDefaultSCDatapoints ($ioHash, $devHash, $detect)) {
+			HMCCU_Log ($devHash, 2, "Cannot set default state- and control datapoints");
+		}
 
 		if (!exists($devHash->{hmccu}{nodefaults}) || $devHash->{hmccu}{nodefaults} == 0) {
 			if (!HMCCU_SetDefaultAttributes ($devHash)) {
@@ -239,18 +233,24 @@ sub HMCCUCHN_Attr ($@)
 			return 'Device is read only' if ($clHash->{readonly} eq 'yes');
 		}
 		elsif ($attrname =~ /^(state|control)datapoint$/) {
-			return "Invalid value $attrval"
-				if (!HMCCU_SetSCDatapoints ($clHash, $attrname, $attrval));
+			my $role = HMCCU_GetChannelRole ($clHash);
+			return "Invalid value $attrval" if (!HMCCU_SetSCDatapoints ($clHash, $attrname, $attrval, $role));
 		}
 	}
 	elsif ($cmd eq 'del') {
 		if ($attrname =~ /^(state|control)datapoint$/) {
 			# Reset value
 			HMCCU_SetSCDatapoints ($clHash, $attrname);
+			delete $clHash->{hmccu}{roleCmds}
+				if (exists($clHash->{hmccu}{roleCmds}) &&
+					(!exists($clHash->{hmccu}{control}{chn}) || $clHash->{hmccu}{control}{chn} eq ''));
+			if ($init_done) {
+				if (!HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash)) {
+					HMCCU_Log ($clHash, 2, "Cannot set default state- and control datapoints");
+				}
+			}		
 		}
 	}
-
-#	HMCCU_RefreshReadings ($clHash) if ($init_done);
 
 	return undef;
 }

@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCU.pm 18745 2019-02-26 17:33:23Z zap $
 #
-#  Version 4.4.064
+#  Version 4.4.065
 #
 #  Module for communication between FHEM and Homematic CCU2/3.
 #
@@ -58,7 +58,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '4.4.064';
+my $HMCCU_VERSION = '4.4.065';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -244,7 +244,7 @@ sub HMCCU_AddDeviceModel ($$$$$$);
 sub HMCCU_AddPeers ($$$);
 sub HMCCU_CheckParameter ($$;$$$);
 sub HMCCU_DetectDevice ($$$);
-sub HMCCU_IdentifyRole ($$$$);
+sub HMCCU_IdentifyRole ($$$$$);
 sub HMCCU_GetSCInfo ($$;$);
 sub HMCCU_DeviceDescToStr ($$);
 sub HMCCU_ExecuteRoleCommand ($@);
@@ -285,7 +285,7 @@ sub HMCCU_GetReceivers ($$$);
 sub HMCCU_IsValidChannel ($$$);
 sub HMCCU_IsValidDevice ($$$);
 sub HMCCU_IsValidDeviceOrChannel ($$$);
-sub HMCCU_IsValidParameter ($$$$);
+sub HMCCU_IsValidParameter ($$$$;$);
 sub HMCCU_IsValidReceiver ($$$$);
 sub HMCCU_ParamsetDescToStr ($$);
 sub HMCCU_RemoveDevice ($$$;$);
@@ -304,7 +304,7 @@ sub HMCCU_GetDatapoint ($@);
 sub HMCCU_GetDatapointAttr ($$$$$);
 sub HMCCU_GetDatapointList ($;$$);
 sub HMCCU_GetSCDatapoints ($);
-sub HMCCU_SetSCDatapoints ($$;$);
+sub HMCCU_SetSCDatapoints ($$;$$);
 sub HMCCU_GetStateValues ($;$$);
 sub HMCCU_GetValidDatapoints ($$$$;$);
 sub HMCCU_IsValidDatapoint ($$$$$);
@@ -1163,7 +1163,7 @@ sub HMCCU_AggregateReadings ($$)
 				$mc++; $f = 1;
 			}
 			if ($f) {
-				$rl .= ($mc > 1 ? ",$r->{fcoll}" : $r->{fcoll});
+				$rl .= ($mc > 1 ? ",$fcoll" : $fcoll);
 				last;
 			}
 		}
@@ -1325,10 +1325,11 @@ sub HMCCU_Set ($@)
 				next;
 			}
 			if ($hash->{hmccu}{prg}{$p}{internal} eq 'false' && $p !~ /^\$/) {
-				$p =~ s/ /#/g;
-				push (@progs, $p);
-				push (@aprogs, $p) if ($hash->{hmccu}{prg}{$p}{active} eq 'true');
-				push (@iprogs, $p) if ($hash->{hmccu}{prg}{$p}{active} eq 'false');
+				my $pn = $p;
+				$pn =~ s/ /#/g;
+				push (@progs, $pn);
+				push (@aprogs, $pn) if ($hash->{hmccu}{prg}{$p}{active} eq 'true');
+				push (@iprogs, $pn) if ($hash->{hmccu}{prg}{$p}{active} eq 'false');
 			}
 		}
 		if (scalar (@progs) > 0) {
@@ -1741,9 +1742,9 @@ sub HMCCU_Get ($@)
 
 		# Process command line parameters				
 		my $devSpec = shift @$a // return HMCCU_SetError ($hash, $usage); 
-		my $devPrefix = $h->{p} // '';	 # Prefix of FHEM device name
-		my $devSuffix = $h->{s} // '';	 # Suffix of FHEM device name
-		my $devFormat = $h->{f} // '%n';	 # Format string for FHEM device name
+		my $devPrefix = $h->{'p'} // '';	    # Prefix of FHEM device name
+		my $devSuffix = $h->{'s'} // '';	    # Suffix of FHEM device name
+		my $devFormat = $h->{'f'} // '%n';	 # Format string for FHEM device name
 		my @options = ();
 		my ($forceDev, $saveDef) = (0, 0);
 		foreach my $defOpt (@$a) {
@@ -1764,6 +1765,7 @@ sub HMCCU_Get ($@)
 		# {statsValue}{devName} = addr.ccuName
 		#
 		# {notDetected}{$ccuDevName}: CCU device with $devName not detected
+		# {notSupported}{$ccuDevName}: CCU device type is not supported by create commands
 		# {fhemExists}{$fhemDevName}: FHEM device with $devName already exists
 		# {devDefined}{$fhemDevName}: FHEM device for $devAdd already exists
 		# {defFailed}{$fhemDevName}: Device definition failed
@@ -1777,10 +1779,15 @@ sub HMCCU_Get ($@)
 				next if ($hash->{hmccu}{device}{$iface}{$address}{_addtype} ne 'dev' ||
 					HMCCU_ExprNotMatch ($ccuName, $devSpec, 1));
 
+				if ($hash->{hmccu}{device}{$iface}{$address}{_model} =~ /^(HM-RCV-50|HmIP-RCV-50)$/) {
+					$cs{notSupported}{$ccuName} = "$address [$ccuName]";
+					next;
+				}
+				
 				# Detect FHEM device type 
 				my $detect = HMCCU_DetectDevice ($hash, $address, $iface);
 				if (!defined($detect) || $detect->{level} == 0) {		
-					$cs{notDetected}{$ccuName} = "$address.$ccuName";
+					$cs{notDetected}{$ccuName} = "$address [$ccuName]";
 					next;
 				}
 
@@ -1833,6 +1840,7 @@ sub HMCCU_Get ($@)
 		# Prepare summary
 		my %csText = (
 			notDetected => 'Not detected CCU devices: ',
+			notSupported => 'Not supported by create command: ',
 			fhemExists => 'FHEM device already exists: ',
 			devDefined => 'HMCCUCHN devices already defined for: ',
 			defFailed => 'Failed to define devices: ',
@@ -1872,7 +1880,7 @@ sub HMCCU_Get ($@)
 			foreach my $dev (@devlist) {
 				my $ch = $defs{$dev};
 				my $ct = uc($ch->{ccutype});
-				my $fw = defined ($ch->{firmware}) ? $ch->{firmware} : 'N/A';
+				my $fw = $ch->{firmware} // 'N/A';
 				next if (!exists ($hash->{hmccu}{type}{$ct}) || $ct !~ /$dtexp/);
 				$result .= sprintf "%-25s %-20s %-7s <a href=\"http://www.eq-3.de/%s\">%-9s</a> %-10s\n",
 					$ch->{NAME}, $ct, $fw, $hash->{hmccu}{type}{$ct}{download},
@@ -3276,12 +3284,12 @@ sub HMCCU_UpdateDevice ($$)
 	
 	return if (!exists($clHash->{ccuif}) || !exists($clHash->{ccuaddr}));
 	
-	my $clType = $clHash->{TYPE};
+	my $clType  = $clHash->{TYPE};
 	my $address = $clHash->{ccuaddr};
-	my $iface = $clHash->{ccuif};
+	my $iface   = $clHash->{ccuif};
 	my ($da, $dc) = HMCCU_SplitChnAddr ($address);
 	
-	# Update the links
+	# Update link receivers
 	if (exists($ioHash->{hmccu}{snd}{$iface}{$da})) {
 		delete $clHash->{receiver} if (exists($clHash->{receiver}));
 		my @rcvList = ();
@@ -3301,6 +3309,7 @@ sub HMCCU_UpdateDevice ($$)
 		$clHash->{receiver} = join (',', HMCCU_Unique (@rcvList)) if (scalar(@rcvList) > 0);
 	}
 
+	# Update link senders
 	if (exists($ioHash->{hmccu}{rcv}{$iface}{$da})) {
 		delete $clHash->{sender} if (exists($clHash->{sender}));
 		my @sndList = ();
@@ -3569,6 +3578,8 @@ sub HMCCU_GetDeviceConfig ($)
 
 	# Get defined FHEM devices	
 	my @devList = HMCCU_FindClientDevices ($ioHash, '(HMCCUDEV|HMCCUCHN)');
+
+	# Add devices
 	foreach my $d (@devList) {
 		my $clHash = $defs{$d};
 		if (exists($clHash->{ccuaddr}) && exists($clHash->{ccuif})) {
@@ -4077,10 +4088,11 @@ sub HMCCU_FindParamDef ($$$)
 # Returns 0 or 1
 ######################################################################
 
-sub HMCCU_IsValidParameter ($$$$)
+sub HMCCU_IsValidParameter ($$$$;$)
 {
-	my ($clHash, $object, $ps, $parameter) = @_;
+	my ($clHash, $object, $ps, $parameter, $oper) = @_;
 
+	$oper //= 7;
 	my $ioHash = HMCCU_GetHash ($clHash) // return 0;
 	
 	my $devDesc = ref($object) eq 'HASH' ? $object : HMCCU_GetDeviceDesc ($ioHash, $object);
@@ -4094,7 +4106,8 @@ sub HMCCU_IsValidParameter ($$$$)
 		if (defined($model)) {
 			my @parList = ref($parameter) eq 'HASH' ? keys %$parameter : ($parameter);
 			foreach my $p (@parList) {
-				return 0 if (!exists($model->{$ps}) || !exists($model->{$ps}{$p}));
+				return 0 if (!exists($model->{$ps}) || !exists($model->{$ps}{$p}) ||
+					!($model->{$ps}{$p}{OPERATIONS} & $oper));
 			}
 			return 1;
 		}
@@ -4318,6 +4331,9 @@ sub HMCCU_UpdateParamsetReadings ($$$;$)
 	my $peer = AttrVal ($clName, 'peer', 'null');
  	my $clInt = $clHash->{ccuif};
 	my ($sc, $sd, $cc, $cd) = HMCCU_GetSCDatapoints ($clHash);
+
+#	HMCCU_Trace ($clHash, 2, 'AddList='.join(',', @addList));
+#	HMCCU_Trace ($clHash, 2, 'Objects='.Dumper($objects));
 
 	readingsBeginUpdate ($clHash);
 	
@@ -5805,7 +5821,7 @@ sub HMCCU_GetDeviceType ($$$)
 
 	if (HMCCU_IsValidDeviceOrChannel ($hash, $addr, $HMCCU_FL_ADDRESS)) {
 		$addr =~ s/:[0-9]+$//;
-		return $hash->{hmccu}{dev}{$addr}{type};
+		return $hash->{hmccu}{dev}{$addr}{type} // $default;
 	}
 
 	return $default;
@@ -6291,6 +6307,7 @@ sub HMCCU_GetAttribute ($$$$)
 sub HMCCU_SetDefaultAttributes ($;$)
 {
 	my ($clHash, $parRef) = @_;
+	my $ioHash = HMCCU_GetHash ($clHash);
 	my $clName = $clHash->{NAME};
 	
 	$parRef //= { mode => 'update', role => undef, roleChn => undef };
@@ -6304,6 +6321,10 @@ sub HMCCU_SetDefaultAttributes ($;$)
 			my @removeAttr = ('ccureadingname', 'ccuscaleval', 'eventMap', 'cmdIcon',
 				'substitute', 'webCmd', 'widgetOverride'
 			);
+			my $detect = HMCCU_DetectDevice ($ioHash, $clHash->{ccuaddr}, $clHash->{ccuif});
+			if (defined($detect) && ($detect->{level} == 1 || ($detect->{level} == 2 && $clHash->{TYPE} eq 'HMCCUCHN'))) {
+				push @removeAttr, 'statechannel', 'statedatapoint', 'controlchannel', 'controldatapoint', 'statevals'
+			}
 			foreach my $a (@removeAttr) {
 				CommandDeleteAttr (undef, "$clName $a") if (exists($attr{$clName}{$a}));
 			}
@@ -6320,7 +6341,7 @@ sub HMCCU_SetDefaultAttributes ($;$)
 		return 1;
 	}
 	else {
-		HMCCU_Log ($clHash, 2, "Cannot detect control channel role of $clName");
+		HMCCU_Log ($clHash, 2, "Cannot detect role of $clName");
 		return 0;
 	}
 }
@@ -7160,15 +7181,18 @@ sub HMCCU_CheckParameter ($$;$$$)
 
 ######################################################################
 # Set or delete state and control datapoints
-# Parameter d specifies the value to be set
+# Parameter d specifies the value to be set:
+#   state, control, statechannel, statedatapoint, controlchannel,
+#   controldatapoint
 ######################################################################
 
-sub HMCCU_SetSCDatapoints ($$;$)
+sub HMCCU_SetSCDatapoints ($$;$$)
 {
-	my ($clHash, $d, $v) = @_;
+	my ($clHash, $d, $v, $r) = @_;
 
 	my $ioHash = HMCCU_GetHash ($clHash);
-	
+	$r //= '';
+
 	# Flags: 1=statechannel, 2=statedatapoint, 4=controlchannel, 8=controldatapoint
 	my %flags = (
 		'state' => 3, 'control' => 12,
@@ -7183,6 +7207,8 @@ sub HMCCU_SetSCDatapoints ($$;$)
 
 	if (defined($v)) {
 		# Set value
+		return 0 if ($v eq '');
+
 		if ($f & 10) {
 			($chn, $dpt) = $v =~ /^([0-9]{1,2})\.(.+)/ ? ($1, $2) : ($clHash->{hmccu}{$d}{chn}, $v);
 		}
@@ -7193,15 +7219,43 @@ sub HMCCU_SetSCDatapoints ($$;$)
 
 		return 0 if ($init_done && defined($chn) && $chn ne '' && defined($dpt) && $dpt ne '' &&
 			!HMCCU_IsValidDatapoint ($clHash, $clHash->{ccutype}, $chn, $dpt, $f & 3 ? 5 : 2));
+
+		$clHash->{ccurolestate} = $r if ($r ne '' && $f & 3);
+		$clHash->{ccurolectrl} = $r if ($r ne '' && $f & 12);
 	}
 	else {
 		# Delete value
 		$chn = '' if ($f & 5);
 		$dpt = '' if ($f & 10);
+		delete $clHash->{ccurolestate} if ($f & 3);
+		delete $clHash->{ccurolectrl} if ($f & 12);
 	}
 
 	$clHash->{hmccu}{$d}{chn} = $chn if (defined($chn));
 	$clHash->{hmccu}{$d}{dpt} = $dpt if (defined($dpt));
+
+	return 1;
+}
+
+sub HMCCU_SetDefaultSCDatapoints ($$;$)
+{
+	my ($ioHash, $clHash, $detect) = @_;
+
+	$detect //= HMCCU_DetectDevice ($ioHash, $clHash->{ccuaddr}, $clHash->{ccuif});
+	return 0 if (!defined($detect));
+
+	my $si = HMCCU_GetSCInfo ($detect, 0);	# State info
+	my $ci = HMCCU_GetSCInfo ($detect, 1);	# Control info
+	return 0 if (!defined($si) && !defined($ci));
+		
+	HMCCU_SetSCDatapoints ($clHash, 'statedatapoint', $detect->{defSDP}, $si->{role});
+	HMCCU_SetSCDatapoints ($clHash, 'controldatapoint', $detect->{defCDP}, $ci->{role});
+
+	my $chn = $detect->{defCCh} != -1 ? $detect->{defCCh} : $detect->{defSCh};
+	my $dpt = defined($ci) ? $ci->{datapoint} : $si->{datapoint};
+
+	HMCCU_UpdateRoleCommands ($ioHash, $clHash, $chn);
+	HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $chn, $dpt);
 
 	return 1;
 }
@@ -7230,44 +7284,63 @@ sub HMCCU_SetSCDatapoints ($$;$)
 sub HMCCU_GetSCDatapoints ($)
 {
 	my ($clHash) = @_;
+
+	my $ioHash = HMCCU_GetHash ($clHash);
 	my $type = $clHash->{TYPE};
 
+	my $sc = exists($clHash->{hmccu}{state}{chn}) ? $clHash->{hmccu}{state}{chn} : '';
+	my $sd = exists($clHash->{hmccu}{state}{dpt}) ? $clHash->{hmccu}{state}{dpt} : '';
+	my $cc = exists($clHash->{hmccu}{control}{chn}) ? $clHash->{hmccu}{control}{chn} : '';
+	my $cd = exists($clHash->{hmccu}{control}{dpt}) ? $clHash->{hmccu}{control}{dpt} : '';
+	my $rsdCnt;
+	my $rcdCnt;
+
 	# Detect by attributes
-	my ($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCAttr ($clHash);
+	($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCAttr ($clHash, $sc, $sd, $cc, $cd);
 	return ($sc, $sd, $cc, $cd, 1, 1) if ($rsdCnt == 1 && $rcdCnt == 1);
 
+	HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash);
+
+	return (
+		exists($clHash->{hmccu}{state}{chn}) ? $clHash->{hmccu}{state}{chn} : '',
+		exists($clHash->{hmccu}{state}{dpt}) ? $clHash->{hmccu}{state}{dpt} : '',
+		exists($clHash->{hmccu}{control}{chn}) ? $clHash->{hmccu}{control}{chn} : '',
+		exists($clHash->{hmccu}{control}{dpt}) ? $clHash->{hmccu}{control}{dpt} : '',
+		1, 1
+	)
+
 	# Detect by role, but do not override values defined as attributes
-	if (defined($clHash->{hmccu}{role}) && $clHash->{hmccu}{role} ne '') {
-		HMCCU_Trace ($clHash, 2, "hmccurole=$clHash->{hmccu}{role}");
-		if ($type eq 'HMCCUCHN') {
-			($sd, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCChn ($clHash, $sd, $cd);
-		}
-		elsif ($type eq 'HMCCUDEV') {
-			($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCDev ($clHash, $sc, $sd, $cc, $cd);
-		}
-	}
+#	if (defined($clHash->{hmccu}{role}) && $clHash->{hmccu}{role} ne '') {
+#		HMCCU_Trace ($clHash, 2, "hmccurole=$clHash->{hmccu}{role}");
+	# 	if ($type eq 'HMCCUCHN') {
+	# 		($sd, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCChn ($clHash, $sd, $cd);
+	# 	}
+	# 	elsif ($type eq 'HMCCUDEV') {
+	# 		($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCDev ($clHash, $sc, $sd, $cc, $cd);
+	# 	}
+	# }
 	
-	if ($rsdCnt == 0 && $rcdCnt == 1 && HMCCU_IsValidDatapoint ($clHash, $clHash->{ccutype}, $cc, $cd, 5)) {
+	# if ($rsdCnt == 0 && $rcdCnt == 1 && HMCCU_IsValidDatapoint ($clHash, $clHash->{ccutype}, $cc, $cd, 5)) {
 		# Use control datapoint as state datapoint if control datapoint is readable or updated by events
-		($sc, $sd) = ($cc, $cd);
-	}
-	elsif ($rsdCnt == 1 && $rcdCnt == 0 && HMCCU_IsValidDatapoint ($clHash, $clHash->{ccutype}, $sc, $sd, 2)) {
-		# Use state datapoint as control datapoint if state datapoint is writeable
-		($cc, $cd) = ($sc, $sd);
-	}
+	# 	($sc, $sd) = ($cc, $cd);
+	# }
+	# elsif ($rsdCnt == 1 && $rcdCnt == 0 && HMCCU_IsValidDatapoint ($clHash, $clHash->{ccutype}, $sc, $sd, 2)) {
+	# 	# Use state datapoint as control datapoint if state datapoint is writeable
+	# 	($cc, $cd) = ($sc, $sd);
+	# }
 	
 	# Store channels and datapoints in device hash
-	$clHash->{hmccu}{state}{dpt} = $sd;
-	$clHash->{hmccu}{state}{chn} = $sc;
-	$clHash->{hmccu}{control}{dpt} = $cd;
-	$clHash->{hmccu}{control}{chn} = $cc;
+	# $clHash->{hmccu}{state}{dpt} = $sd;
+	# $clHash->{hmccu}{state}{chn} = $sc;
+	# $clHash->{hmccu}{control}{dpt} = $cd;
+	# $clHash->{hmccu}{control}{chn} = $cc;
 	
-	return ($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt);
+	# return ($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt);
 }
 
-sub HMCCU_DetectSCAttr ($)
+sub HMCCU_DetectSCAttr ($$$$$)
 {
-	my ($clHash) = @_;
+	my ($clHash, $sc, $sd, $cc, $cd) = @_;
 	my $name = $clHash->{NAME};
 	my $type = $clHash->{TYPE};
 	
@@ -7277,14 +7350,16 @@ sub HMCCU_DetectSCAttr ($)
 		($da, $dc) = HMCCU_SplitChnAddr ($clHash->{ccuaddr});
 	}
 
-	my ($sc, $sd, $cc, $cd) = ($dc // '', '', $dc // '', '');
+	$sc = $dc if ($sc eq '');
+	$cc = $dc if ($cc eq '');
+
 	my $statedatapoint = AttrVal ($name, 'statedatapoint', '');
 	my $controldatapoint = AttrVal ($name, 'controldatapoint', '');
 	
 	# Attributes controlchannel and statechannel are only valid for HMCCUDEV devices
 	if ($type eq 'HMCCUDEV') {
-		$sc = AttrVal ($name, 'statechannel', '');
-		$cc = AttrVal ($name, 'controlchannel', '');
+		$sc = AttrVal ($name, 'statechannel', $sc);
+		$cc = AttrVal ($name, 'controlchannel', $cc);
 	}
 	
 	# If attribute statedatapoint is specified, use it.
@@ -7505,11 +7580,11 @@ sub HMCCU_DetectDevice ($$$)
 	if ($devDesc->{_addtype} eq 'dev') {
 		foreach my $child (split(',', $devDesc->{CHILDREN})) {
 			$devDesc = HMCCU_GetDeviceDesc ($ioHash, $child, $devDesc->{_interface}) // next;
-			HMCCU_IdentifyRole ($devDesc, $iface, \@stateRoles, \@controlRoles);
+			HMCCU_IdentifyRole ($ioHash, $devDesc, $iface, \@stateRoles, \@controlRoles);
 		}
 	}
 	elsif ($devDesc->{_addtype} eq 'chn') {
-		HMCCU_IdentifyRole ($devDesc, $iface, \@stateRoles, \@controlRoles);
+		HMCCU_IdentifyRole ($ioHash, $devDesc, $iface, \@stateRoles, \@controlRoles);
 	}
 
 	# Count roles and unique roles
@@ -7525,7 +7600,7 @@ sub HMCCU_DetectDevice ($$$)
 	# Build device information to be returned
 	my %di = (
 		stateRoleCount => $stateRoleCnt, controlRoleCount => $ctrlRoleCnt,
-		defSCh => -1, defCCh => -1,
+		defSCh => -1, defCCh => -1, defSDP => '', defCDP => '',
 		level => 0
 	);
 	my $p = -1;
@@ -7612,18 +7687,25 @@ sub HMCCU_DetectDevice ($$$)
 # Identify a channel role
 ######################################################################
 
-sub HMCCU_IdentifyRole ($$$$)
+sub HMCCU_IdentifyRole ($$$$$)
 {
-	my ($devDesc, $iface, $stateRoles, $controlRoles) = @_;
+	my ($ioHash, $devDesc, $iface, $stateRoles, $controlRoles) = @_;
 	
-	my $t = $devDesc->{TYPE};	# Channel role
+	my $t = $devDesc->{TYPE};		# Channel role
+
 	if (exists($HMCCU_STATECONTROL->{$t})) {
 		my ($a, $c) = HMCCU_SplitChnAddr ($devDesc->{ADDRESS});
 		my $p = $HMCCU_STATECONTROL->{$t}{P};
+
+		# State datapoint must be readable and/or event
 		my $sDP = HMCCU_DetectSCDatapoint ($HMCCU_STATECONTROL->{$t}{S}, $iface);
-		push @$stateRoles, { 'channel' => $c, 'role' => $t, 'datapoint' => $sDP, 'priority' => $p } if ($sDP ne '');
+		push @$stateRoles, { 'channel' => $c, 'role' => $t, 'datapoint' => $sDP, 'priority' => $p }
+			if ($sDP ne '' && HMCCU_IsValidParameter ($ioHash, $devDesc, 'VALUES', $sDP, 5));
+
+		# Control datapoint must be writeable
 		my $cDP = HMCCU_DetectSCDatapoint ($HMCCU_STATECONTROL->{$t}{C}, $iface);
-		push @$controlRoles, { 'channel' => $c, 'role' => $t, 'datapoint' => $cDP, 'priority' => $p } if ($cDP ne '');
+		push @$controlRoles, { 'channel' => $c, 'role' => $t, 'datapoint' => $cDP, 'priority' => $p }
+			if ($cDP ne ''&& HMCCU_IsValidParameter ($ioHash, $devDesc, 'VALUES', $cDP, 2));
 	}	
 }
 
@@ -7637,10 +7719,12 @@ sub HMCCU_GetSCInfo ($$;$)
 	my ($detect, $mode, $chn) = @_;
 	
 	$chn //= $mode == 0 ? $detect->{defSCh} : $detect->{defCCh};
-
-	return $detect->{stateRole}{$chn} if ($mode == 0 && $chn >= 0);
-	return $detect->{controlRole}{$chn} if ($mode == 1 && $chn >= 0);
 	
+	if ($chn >= 0) {
+		return $detect->{stateRole}{$chn} if (exists($detect->{stateRole}{$chn}) && $mode == 0);
+		return $detect->{controlRole}{$chn} if (exists($detect->{controlRole}{$chn}) && $mode == 1);
+	}
+
 	return undef;
 }
 
