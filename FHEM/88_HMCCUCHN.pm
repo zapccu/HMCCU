@@ -429,7 +429,7 @@ sub HMCCUCHN_Get ($@)
    exist before a client device can be defined. If a CCU channel is not found, execute command
    'get ccuConfig' in I/O device. This will synchronize devices and channels between CCU
    and HMCCU.
-   </br></br>
+   <br/><br/>
    <a name="HMCCUCHNdefine"></a>
    <b>Define</b><br/><br/>
    <ul>

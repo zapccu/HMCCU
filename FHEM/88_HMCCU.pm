@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCU.pm 18745 2019-02-26 17:33:23Z zap $
 #
-#  Version 4.4.067
+#  Version 4.4.068
 #
 #  Module for communication between FHEM and Homematic CCU2/3.
 #
@@ -58,7 +58,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '4.4.067';
+my $HMCCU_VERSION = '4.4.068';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -97,6 +97,7 @@ my %HMCCU_RPC_SSL = (
 # Default values for delayed initialization during FHEM startup
 my $HMCCU_INIT_INTERVAL0   = 12;
 my $HMCCU_CCU_PING_TIMEOUT = 1;
+my $HMCCU_CCU_PING_SLEEP   = 1;
 my $HMCCU_CCU_BOOT_DELAY   = 180;
 my $HMCCU_CCU_DELAYED_INIT = 59;
 my $HMCCU_CCU_RPC_OFFSET   = 20;
@@ -351,7 +352,7 @@ sub HMCCU_Min ($$);
 sub HMCCU_MinMax ($$$);
 sub HMCCU_RefToString ($);
 sub HMCCU_ResolveName ($$);
-sub HMCCU_TCPConnect ($$);
+sub HMCCU_TCPConnect ($$;$);
 sub HMCCU_TCPPing ($$$);
 sub HMCCU_UpdateReadings ($$;$);
 
@@ -8358,6 +8359,7 @@ sub HMCCU_SetMultipleDatapoints ($$) {
 sub HMCCU_ScaleValue ($$$$$;$)
 {
 	my ($hash, $chnno, $dpt, $value, $mode, $paramSet) = @_;
+	$chnno //= '';
 	$paramSet //= 'VALUES';
 	my $name = $hash->{NAME};
 	my $ioHash = HMCCU_GetHash ($hash);
@@ -8365,10 +8367,17 @@ sub HMCCU_ScaleValue ($$$$$;$)
 	# Get parameter definition and min/max values
 	my $min;
 	my $max;
-	my $paramDef = HMCCU_GetParamDef ($ioHash, $hash->{ccuaddr}, 'VALUES', $dpt);
+	my $unit;
+	my $ccuaddr = $hash->{ccuaddr};
+	$ccuaddr .= ':'.$chnno if ($hash->{TYPE} eq 'HMCCUDEV' && $chnno ne ''); 
+	my $paramDef = HMCCU_GetParamDef ($ioHash, $ccuaddr, 'VALUES', $dpt);
 	if (defined($paramDef)) {
 		$min = $paramDef->{MIN} if (defined($paramDef->{MIN}) && $paramDef->{MIN} ne '');
 		$max = $paramDef->{MAX} if (defined($paramDef->{MAX}) && $paramDef->{MAX} ne '');
+		$unit = $paramDef->{UNIT};
+	}
+	else {
+		HMCCU_Trace ($hash, 2, "Can't get parameter definion for addr=$hash->{ccuaddr} chn=$chnno");
 	}
 
 	# Default values can be overriden by attribute
@@ -8455,7 +8464,7 @@ sub HMCCU_ScaleValue ($$$$$;$)
 			$value = $hh*60+$mm;
 		} 
 	}
-	elsif (defined($paramDef) && $paramDef->{UNIT} =~ /^([0-9]+)%$/) {
+	elsif (defined($unit) && $unit =~ /^([0-9]+)%$/) {
 		my $f = $1;
 		$min //= 0;
 		$max //= 1.0;
@@ -9549,8 +9558,8 @@ sub HMCCU_TCPPing ($$$)
 		my $t = time ();
 	
 		while (time() < $t+$timeout) {
-			return 1 if (HMCCU_TCPConnect ($addr, $port) ne '');
-			sleep (20);
+			return 1 if (HMCCU_TCPConnect ($addr, $port, 1) ne '');
+			sleep ($HMCCU_CCU_PING_SLEEP);
 		}
 		
 		return 0;
@@ -9565,11 +9574,11 @@ sub HMCCU_TCPPing ($$$)
 # Return empty string on error or local IP address on success.
 ######################################################################
 
-sub HMCCU_TCPConnect ($$)
+sub HMCCU_TCPConnect ($$;$)
 {
-	my ($addr, $port) = @_;
+	my ($addr, $port, $timeout) = @_;
 	
-	my $socket = IO::Socket::INET->new (PeerAddr => $addr, PeerPort => $port);
+	my $socket = IO::Socket::INET->new (PeerAddr => $addr, PeerPort => $port, Timeout => $timeout);
 	if ($socket) {
 		my $ipaddr = $socket->sockhost ();
 		close ($socket);
