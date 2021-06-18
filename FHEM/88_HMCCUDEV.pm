@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUDEV.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.048
+#  Version 4.4.049
 #
 #  (c) 2021 zap (zap01 <at> t-online <dot> de)
 #
@@ -95,7 +95,7 @@ sub HMCCUDEV_Define ($@)
 	# Handle some legacy options
 	return 'Virtual devices are no longer supported. Use FHEM built in features like readingsgroup or structure'
 		if ($devspec eq 'virtual');
-	HMCCU_Log ($hash, 2, "Found old device definition syntax using group or groupexp. Group options will be ignored in furture versions.")
+	HMCCU_Log ($hash, 2, "Found old device definition syntax using group or groupexp. Group options will be ignored in future versions.")
 		if (exists($h->{group}) || exists($h->{groupexp}));
 
 	# Store some definitions for delayed initialization
@@ -139,7 +139,7 @@ sub HMCCUDEV_Define ($@)
 	else {
 		# CCU not ready during FHEM start
 		if (!defined($ioHash) || $ioHash->{ccustate} ne 'active') {
-			HMCCU_Log ($hash, 3, 'Cannot detect IO device, maybe CCU not ready. Trying later ...');
+			HMCCU_Log ($hash, 3, "Cannot detect IO device, maybe CCU not ready or device doesn't exist on CCU");
 			$hash->{ccudevstate} = 'pending';
 			return undef;
 		}
