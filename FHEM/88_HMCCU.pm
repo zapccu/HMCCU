@@ -4482,9 +4482,6 @@ sub HMCCU_UpdateParamsetReadings ($$$;$)
  	my $clInt = $clHash->{ccuif};
 	my ($sc, $sd, $cc, $cd) = HMCCU_GetSCDatapoints ($clHash);
 
-#	HMCCU_Trace ($clHash, 2, 'AddList='.join(',', @addList));
-#	HMCCU_Trace ($clHash, 2, 'Objects='.Dumper($objects));
-
 	readingsBeginUpdate ($clHash);
 	
 	# Loop over all addresses
@@ -4573,9 +4570,6 @@ sub HMCCU_UpdateParamsetReadings ($$$;$)
 	
 	# Update device states
 	HMCCU_UpdateDeviceStates ($clHash);
-# 	HMCCU_BulkUpdate ($clHash, 'battery', $battery) if ($battery ne 'unknown');
-# 	HMCCU_BulkUpdate ($clHash, 'activity', $activity);
-# 	HMCCU_BulkUpdate ($clHash, 'devstate', $devState);	
 
 	# Calculate and update HomeMatic state
 	if ($ccuflags !~ /nohmstate/) {
@@ -4936,7 +4930,7 @@ sub HMCCU_GetRPCServerInfo ($$$)
 
 ######################################################################
 # Check if RPC interface is of specified type.
-# Parameter type is A for XML or B for binary.
+# Parameter $type is A for XML or B for binary.
 ######################################################################
 
 sub HMCCU_IsRPCType ($$$)
