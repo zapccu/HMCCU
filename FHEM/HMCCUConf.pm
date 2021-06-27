@@ -67,6 +67,9 @@ $HMCCU_CONFIG_VERSION = '4.8.030';
 	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
 		F => 3, S => 'ACOUSTIC_ALARM_ACTIVE', C => 'ACOUSTIC_ALARM_SELECTION', V => '', P => 2
 	},
+	'DOOR_LOCK_STATE_TRANSMITTER' => {
+		F => 3, S => 'LOCK_STATE', C => 'LOCK_TARGET_LEVEL', V => 'open:2,unlocked:1,locked:0'
+	},
 	'MOTION_DETECTOR' => {
 		F => 3, S => 'MOTION', C => '', V => '', P => 1
 	},
@@ -183,6 +186,12 @@ $HMCCU_CONFIG_VERSION = '4.8.030';
 		'(C#\.)?LEVEL$:+pct',
 	'DIMMER_VIRTUAL_RECEIVER' =>
 		'(C#\.)?LEVEL$:+pct',
+	'KEY' =>
+		'(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
+	'KEY_TRANSCEIVER' =>
+		'(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
+	'VIRTUAL_KEY' =>
+		'(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
 	'MOTION_DETECTOR' =>
 		'^(C#\.)?BRIGHTNESS$:brightness;(C#\.)?MOTION:motion',
 	'MOTIONDETECTOR_TRANSCEIVER' =>
@@ -261,6 +270,11 @@ $HMCCU_CONFIG_VERSION = '4.8.030';
 		'opticalAlarm' => 'V:OPTICAL_ALARM_SELECTION:#alarmMode V:ACOUSTIC_ALARM_SELECTION:0 V:DURATION_UNIT:*unit=0 V:DURATION_VALUE:*duration=10',
 		'acousticAlarm' => 'V:ACOUSTIC_ALARM_SELECTION:#alarmMode V:OPTICAL_ALARM_SELECTION:0 V:DURATION_UNIT:0 V:DURATION_VALUE:10',
 		'duration' => 'I:DURATION_VALUE:?duration I:DURATION_UNIT:#unit'
+	},
+	'DOOR_LOCK_STATE_TRANSMITTER' => {
+		'open' => 'V:LOCK_TARGET_LEVEL:2',
+		'unlock' => 'V:LOCK_TARGET_LEVEL:1',
+		'lock' => 'V:LOCK_TARGET_LEVEL:0'
 	},
 	'KEY' => {
 		'on' => 'V:PRESS_SHORT:1',
