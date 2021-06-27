@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUDEV.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.049
+#  Version 4.4.050
 #
 #  (c) 2021 zap (zap01 <at> t-online <dot> de)
 #
@@ -377,7 +377,7 @@ sub HMCCUDEV_Set ($@)
 		if (HMCCU_IsRPCStateBlocking ($ioHash));
 
 	# Build set command syntax
-	my $syntax = 'clear defaults:reset,update';
+	my $syntax = 'clear defaults:reset,update,old';
 	
 	# Command readingFilter depends on readable datapoints
 	my @dpRList = ();
@@ -422,7 +422,10 @@ sub HMCCUDEV_Set ($@)
 	}
 	elsif ($lcopt eq 'defaults') {
 		my $mode = shift @$a // 'update';
-		my $rc = HMCCU_SetDefaultAttributes ($hash, { mode => $mode, role => undef, roleChn => undef });
+		my $rc = 0;
+		if ($mode ne 'old') {
+			$rc = HMCCU_SetDefaultAttributes ($hash, { mode => $mode, role => undef, roleChn => undef });
+		}
 		$rc = HMCCU_SetDefaults ($hash) if (!$rc);
 		HMCCU_RefreshReadings ($hash) if ($rc);
 		return HMCCU_SetError ($hash, $rc == 0 ? 'No default attributes found' : 'OK');
@@ -608,12 +611,13 @@ sub HMCCUDEV_Get ($@)
         <code>set temp_control datapoint 2.SET_TEMPERATURE 21</code><br/>
         <code>set temp_control datapoint 2.AUTO_MODE 1 2.SET_TEMPERATURE 21</code>
       </li><br/>
-      <li><b>set &lt;name&gt; defaults ['reset'|'<u>update</u>']</b><br/>
+      <li><b>set &lt;name&gt; defaults ['reset'|'old'|'<u>update</u>']</b><br/>
    		Set default attributes for CCU device type. Default attributes are only available for
    		some device types and for some channels of a device type. If option 'reset' is specified,
    		the following attributes are deleted before the new attributes are set: 
    		'ccureadingname', 'ccuscaleval', 'eventMap', 'substexcl', 'webCmd', 'widgetOverride'.
-   		During update to version 4.4 it's recommended to use option 'reset'.
+   		During update to version 4.4 it's recommended to use option 'reset'. With option 'old'
+		the attributes are set according to HMCCU 4.3 defaults mechanism.
       </li><br/>
       <li><b>set &lt;name&gt; down [&lt;value&gt;]</b><br/>
       	<a href="#HMCCUCHNset">see HMCCUCHN</a>
