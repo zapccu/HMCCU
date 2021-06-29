@@ -6811,20 +6811,23 @@ sub HMCCU_UpdateAdditionalCommands ($$;$$)
 	$cc //= '';
 	$cd //= '';
 
+	if ($cd eq '' || $cc eq '') {
+		HMCCU_Log ($clHash, 2, "Can't add additional commands because no control channel and/or datapoint defined");
+		return;
+	}
+
 	my $s = exists($clHash->{hmccu}{cmdList}{set} && $clHash->{hmccu}{cmdList}{set} ne '') ? ' ' : '';
 	my ($addr, $chn) = HMCCU_SplitChnAddr ($clHash->{ccuaddr});
 
-	if ($cd ne '' && $cc ne '') {
-		# Check if role of control channel is supported by HMCCU
-		my $role = HMCCU_GetChannelRole ($clHash, $ctrlChn);
-		if ($role ne '' && exists($HMCCU_STATECONTROL->{$role}) &&
-			HMCCU_DetectSCDatapoint ($HMCCU_STATECONTROL->{$role}{C}, $clHash->{ccuif}) eq $cd) {
-			# Only add toggle command, ignore attribute statevals
-			my %stateCmds = split (/[:,]/, $HMCCU_STATECONTROL->{$role}{V});
-			my @states = keys %stateCmds;
-			$clHash->{hmccu}{cmdlist}{set} .= $s.'toggle:noArg' if (scalar(@states) > 1);
-			return;
-		}
+	# Check if role of control channel is supported by HMCCU
+	my $role = HMCCU_GetChannelRole ($clHash, $ctrlChn);
+	if ($role ne '' && exists($HMCCU_STATECONTROL->{$role}) &&
+		HMCCU_DetectSCDatapoint ($HMCCU_STATECONTROL->{$role}{C}, $clHash->{ccuif}) eq $cd) {
+		# Only add toggle command, ignore attribute statevals
+		my %stateCmds = split (/[:,]/, $HMCCU_STATECONTROL->{$role}{V});
+		my @states = keys %stateCmds;
+		$clHash->{hmccu}{cmdlist}{set} .= $s.'toggle:noArg' if (scalar(@states) > 1);
+		return;
 	}
 
 	my $sv = AttrVal ($clHash->{NAME}, 'statevals', '');
