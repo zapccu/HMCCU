@@ -6672,7 +6672,7 @@ sub HMCCU_UpdateRoleCommands ($$;$)
 				
 				my $paramDef = HMCCU_GetParamDef ($ioHash, "$addr:$cmdChn", $ps eq 'I' ? 'VALUES' : $pset{$ps}, $dpt);
 				if (!defined($paramDef)) {
-					HMCCU_Log ($ioHash, 3, "Can't get definition of $addr:$cmdChn.$dpt. Ignoring command $cmd for device $clHash->{NAME}");
+					HMCCU_Log ($ioHash, 3, "Can't get definition of datapoint $addr:$cmdChn.$dpt. Ignoring command $cmd for device $clHash->{NAME}");
 					next URCCMD;
 				}
 				$clHash->{hmccu}{roleCmds}{$cmdType}{$cmd}{subcmd}{$scn}{min}  = $paramDef->{MIN};
@@ -6811,12 +6811,53 @@ sub HMCCU_UpdateAdditionalCommands ($$;$$)
 	$cc //= '';
 	$cd //= '';
 
-	# Toggle command
-	my $stateVals = HMCCU_GetStateValues ($clHash, $cd, $cc);
-	HMCCU_Trace ($clHash, 2, "stateVals=$stateVals, cd=$cd, cc=$cc");
-	my %stateCmds = split (/[:,]/, $stateVals);
-	my @states = keys %stateCmds;
-	$clHash->{hmccu}{cmdlist}{set} .= ' toggle:noArg' if (scalar(@states) > 1);
+	my $s = exists($clHash->{hmccu}{cmdList}{set} && $clHash->{hmccu}{cmdList}{set} ne '') ? ' ' : '';
+	my ($addr, $chn) = HMCCU_SplitChnAddr ($clHash->{ccuaddr});
+
+	if ($cd ne '' && $cc ne '') {
+		# Check if role of control channel is supported by HMCCU
+		my $role = HMCCU_GetChannelRole ($clHash, $ctrlChn);
+		if ($role ne '' && exists($HMCCU_STATECONTROL->{$role}) &&
+			HMCCU_DetectSCDatapoint ($HMCCU_STATECONTROL->{$role}{C}, $clHash->{ccuif}) eq $cd) {
+			# Only add toggle command, ignore attribute statevals
+			my %stateCmds = split (/[:,]/, $HMCCU_STATECONTROL->{$role}{V});
+			my @states = keys %stateCmds;
+			$clHash->{hmccu}{cmdlist}{set} .= $s.'toggle:noArg' if (scalar(@states) > 1);
+			return;
+		}
+	}
+
+	my $sv = AttrVal ($clHash->{NAME}, 'statevals', '');
+	if ($sv ne '') {
+		my %stateCmds = split (/[:,]/, $sv);
+		my @states = keys %stateCmds;
+
+		my $paramDef = HMCCU_GetParamDef ($ioHash, "$addr:$cc", 'VALUES', $cd);
+		if (defined($paramDef)) {
+			foreach my $cmd (@states) {
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{channel}  = $cc;
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{role}     = $role;
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcount} = 1;
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{syntax}   = "V:$cd:".$stateCmds{$cmd};
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{usage}    = $cmd;
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcmd}{'000'}{partype} = 3;
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcmd}{'000'}{args}    = 1;
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcmd}{'000'}{min}     = $paramDef->{MIN};
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcmd}{'000'}{max}     = $paramDef->{MAX};
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcmd}{'000'}{unit}    = $paramDef->{UNIT} // '';
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcmd}{'000'}{ps}      = 'VALUES';
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcmd}{'000'}{dpt}     = $cd;
+				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcmd}{'000'}{fnc}     = '';
+			}
+			$clHash->{hmccu}{cmdList}{set} .= $s.join(' ', map { $_ . ':noArg' } @states)
+				if (scalar(@states) > 0);
+			$clHash->{hmccu}{cmdList}{set} .= ' toggle:noArg'
+				if (scalar(@states) > 1);
+		}
+		else {
+			HMCCU_Log ($ioHash, 3, "Can't get definition of datapoint $addr:$cc.$cd. Ignoring commands ".join(',',@states)." for device $clHash->{NAME}");
+		}
+	}
 }
 
 ######################################################################
