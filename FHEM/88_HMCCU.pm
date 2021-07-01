@@ -7876,6 +7876,12 @@ sub HMCCU_DetectDevice ($$$)
 	my @stateRoles = ();
 	my @controlRoles = ();
 	my ($prioState, $prioControl) = (-1, -1);
+
+	if (!defined($address)) {
+		HMCCU_Log ($ioHash, 2, "Parameter address not defined ".stacktraceAsString(undef));
+		return undef;
+	}
+
 	my ($devAdd, $devChn) = HMCCU_SplitChnAddr ($address);
 
 	my $devDesc = HMCCU_GetDeviceDesc ($ioHash, $address, $iface);
