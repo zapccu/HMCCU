@@ -549,7 +549,7 @@ sub HMCCUCHN_Get ($@)
       	channel contains a datapoint STOP.
       </li><br/>
       <li><b>set &lt;name&gt; toggle</b><br/>
-		Toggle state datapoint between values defined by attribute 'statevals'. This command is
+		Toggle state datapoint between values defined by attribute 'statevals' or by channel role. This command is
 		only available if state values can be detected or are defined by using attribute
 		'statevals'. Toggling supports more than two state values.<br/><br/>
 		Example: Toggle blind actor between states 'open', 'half' and 'close'<br/>
@@ -831,14 +831,18 @@ sub HMCCUCHN_Get ($@)
          state datapoint cannot be detected automatically.
       </li><br/>
       <a name="statevals"></a>
-      <li><b>statevals &lt;text&gt;:&lt;text&gt;[,...]</b><br/>
-         Define substitution for values of set commands. The parameters <i>text</i> are available
-         as set commands.
+      <li><b>statevals &lt;new-command&gt;:&lt;control-datapoint-value&gt;[,...]</b><br/>
+         Define set commands for control datapoint. This attribute should only be used if the device
+		 type is not recognized by HMCCU. Using this attribute for automatically detected devices
+		 could lead to problems!
          <br/><br/>
-         Example:<br/>
+         Example: controldatapoint of a device is STATE. Device is not recognized by HMCCU:<br/>
          <code>
+		 # Define 2 new commands on and off representing the possible states of STATE:<br/>
          attr my_switch statevals on:true,off:false<br/>
-         set my_switch on
+		 # After attr the commands on and off are available:<br/>
+         set my_switch on<br/>
+		 set my_switch off
          </code>
       </li><br/>
       <a name="stripnumber"></a>
@@ -866,7 +870,9 @@ sub HMCCUCHN_Get ($@)
       </li><br/>
       <a name="substitute"></a>
       <li><b>substitute &lt;subst-rule&gt;[;...]</b><br/>
-         Define substitutions for datapoint/reading values. Syntax of <i>subst-rule</i> is<br/><br/>
+         Define substitutions for datapoint/reading values. This attribute is helpful / necessary if
+		 a device is not automatically detected by HMCCU.<br/>
+		 Syntax of <i>subst-rule</i> is<br/><br/>
          [[&lt;type&gt;:][&lt;channelno&gt;.]&lt;datapoint&gt;[,...]!]&lt;{#n1-m1|regexp}&gt;:&lt;text&gt;[,...]
          <br/><br/>
          Parameter <i>type</i> is a valid channel type/role, i.e. "SHUTTER_CONTACT".

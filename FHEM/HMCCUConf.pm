@@ -4,7 +4,7 @@
 #
 #  $Id: HMCCUConf.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.8.030
+#  Version 4.8.031
 #
 #  Configuration parameters for HomeMatic devices.
 #
@@ -28,7 +28,7 @@ use vars qw(%HMCCU_CHN_DEFAULTS);
 use vars qw(%HMCCU_DEV_DEFAULTS);
 use vars qw(%HMCCU_SCRIPTS);
 
-$HMCCU_CONFIG_VERSION = '4.8.030';
+$HMCCU_CONFIG_VERSION = '4.8.031';
 
 ######################################################################
 # Map subtype to default role. Subtype is only available for HMIP
@@ -140,7 +140,7 @@ $HMCCU_CONFIG_VERSION = '4.8.030';
 		F => 3, S => 'TEMPERATURE', C => '', V => '', P => 1
 	},
 	'WEATHER_TRANSMIT' => {
-		F => 3, S => 'TEMPERATURE', C => '', V => '', P => 1
+		F => 3, S => 'ACTUAL_TEMPERATURE', C => '', V => '', P => 1
 	},
 	'CLIMATE_TRANSCEIVER' => {
 		F => 3, S => 'ACTUAL_TEMPERATURE', C => '', V => '', P => 1
