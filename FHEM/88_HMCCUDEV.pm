@@ -330,6 +330,7 @@ sub HMCCUDEV_Attr ($@)
 			my $role = HMCCU_GetChannelRole ($clHash, $chn);
 			return "Invalid value $attrval" if (!HMCCU_SetSCDatapoints ($clHash, $attrname, $attrval, $role));
 			if ($init_done && exists($clHash->{hmccu}{control}{chn}) && $clHash->{hmccu}{control}{chn} ne '') {
+				HMCCU_Log ($clHash, 2, "HMCCUDEV Attr updating role commands");
 				HMCCU_UpdateRoleCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn});
 				HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn}, $clHash->{hmccu}{control}{dpt})
 					if (exists($clHash->{hmccu}{control}{dpt}) && $clHash->{hmccu}{control}{dpt} ne '');

@@ -1052,6 +1052,7 @@ sub HMCCU_Notify ($$)
 						if ($aAtt =~ /^($cmdAttrList)$/) {
 							my ($sc, $sd, $cc, $cd, $sdCnt, $cdCnt) = HMCCU_GetSCDatapoints ($hash);
 							if ($cdCnt < 2) {
+								HMCCU_Log ($hash, 2, "Notify Attr: Updating role commands");
 								HMCCU_UpdateRoleCommands ($hash, $clHash, $cc);
 								HMCCU_UpdateAdditionalCommands ($hash, $clHash, $cc, $cd);
 							}
@@ -6812,15 +6813,15 @@ sub HMCCU_UpdateAdditionalCommands ($$;$$)
 	$cd //= '';
 
 	if ($cd eq '' || $cc eq '') {
-		HMCCU_Log ($clHash, 2, "Can't add additional commands because no control channel and/or datapoint defined");
+		HMCCU_Log ($clHash, 2, "Can't add additional commands because no control channel and/or datapoint defined".stacktraceAsString(undef));
 		return;
 	}
 
-	my $s = exists($clHash->{hmccu}{cmdList}{set} && $clHash->{hmccu}{cmdList}{set} ne '') ? ' ' : '';
+	my $s = exists($clHash->{hmccu}{cmdList}{set}) && $clHash->{hmccu}{cmdList}{set} ne '' ? ' ' : '';
 	my ($addr, $chn) = HMCCU_SplitChnAddr ($clHash->{ccuaddr});
 
 	# Check if role of control channel is supported by HMCCU
-	my $role = HMCCU_GetChannelRole ($clHash, $ctrlChn);
+	my $role = HMCCU_GetChannelRole ($clHash, $cc);
 	if ($role ne '' && exists($HMCCU_STATECONTROL->{$role}) &&
 		HMCCU_DetectSCDatapoint ($HMCCU_STATECONTROL->{$role}{C}, $clHash->{ccuif}) eq $cd) {
 		# Only add toggle command, ignore attribute statevals
@@ -7533,6 +7534,10 @@ sub HMCCU_SetSCDatapoints ($$;$$)
 	return 1;
 }
 
+######################################################################
+# Set default state and control datapoint
+######################################################################
+
 sub HMCCU_SetDefaultSCDatapoints ($$;$)
 {
 	my ($ioHash, $clHash, $detect) = @_;
@@ -7595,6 +7600,7 @@ sub HMCCU_GetSCDatapoints ($)
 	($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCAttr ($clHash, $sc, $sd, $cc, $cd);
 	return ($sc, $sd, $cc, $cd, 1, 1) if ($rsdCnt == 1 && $rcdCnt == 1);
 
+	HMCCU_Log ($clHash, 2, "Datapoints not detected by attribute");
 	HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash);
 
 	return (
@@ -7604,34 +7610,6 @@ sub HMCCU_GetSCDatapoints ($)
 		exists($clHash->{hmccu}{control}{dpt}) ? $clHash->{hmccu}{control}{dpt} : '',
 		1, 1
 	)
-
-	# Detect by role, but do not override values defined as attributes
-#	if (defined($clHash->{hmccu}{role}) && $clHash->{hmccu}{role} ne '') {
-#		HMCCU_Trace ($clHash, 2, "hmccurole=$clHash->{hmccu}{role}");
-	# 	if ($type eq 'HMCCUCHN') {
-	# 		($sd, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCChn ($clHash, $sd, $cd);
-	# 	}
-	# 	elsif ($type eq 'HMCCUDEV') {
-	# 		($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCDev ($clHash, $sc, $sd, $cc, $cd);
-	# 	}
-	# }
-	
-	# if ($rsdCnt == 0 && $rcdCnt == 1 && HMCCU_IsValidDatapoint ($clHash, $clHash->{ccutype}, $cc, $cd, 5)) {
-		# Use control datapoint as state datapoint if control datapoint is readable or updated by events
-	# 	($sc, $sd) = ($cc, $cd);
-	# }
-	# elsif ($rsdCnt == 1 && $rcdCnt == 0 && HMCCU_IsValidDatapoint ($clHash, $clHash->{ccutype}, $sc, $sd, 2)) {
-	# 	# Use state datapoint as control datapoint if state datapoint is writeable
-	# 	($cc, $cd) = ($sc, $sd);
-	# }
-	
-	# Store channels and datapoints in device hash
-	# $clHash->{hmccu}{state}{dpt} = $sd;
-	# $clHash->{hmccu}{state}{chn} = $sc;
-	# $clHash->{hmccu}{control}{dpt} = $cd;
-	# $clHash->{hmccu}{control}{chn} = $cc;
-	
-	# return ($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt);
 }
 
 sub HMCCU_DetectSCAttr ($$$$$)
