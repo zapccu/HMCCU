@@ -7600,8 +7600,9 @@ sub HMCCU_GetSCDatapoints ($)
 	($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCAttr ($clHash, $sc, $sd, $cc, $cd);
 	return ($sc, $sd, $cc, $cd, 1, 1) if ($rsdCnt == 1 && $rcdCnt == 1);
 
-	HMCCU_Log ($clHash, 2, "Datapoints not detected by attribute");
-	HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash);
+	HMCCU_Log ($clHash, 2, "GetSCDatapoints: Datapoints not detected by attribute");
+	my $rc = HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash);
+	HMCCU_Log ($clHash, 2, "SetDefaultSCDatapints returned $rc");
 
 	return (
 		exists($clHash->{hmccu}{state}{chn}) ? $clHash->{hmccu}{state}{chn} : '',
