@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUCHN.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.041
+#  Version 4.4.042
 #
 #  (c) 2021 zap (zap01 <at> t-online <dot> de)
 #
@@ -170,9 +170,9 @@ sub HMCCUCHN_InitDevice ($$)
 		
 		return -2 if (!defined($detect) || $detect->{level} == 0);   # Device not detected
 
-		if (!HMCCU_SetDefaultSCDatapoints ($ioHash, $devHash, $detect)) {
-			HMCCU_Log ($devHash, 2, "Cannot set default state- and control datapoints");
-		}
+		my ($sc, $sd, $cc, $cd, $rsd, $rcd) = HMCCU_SetDefaultSCDatapoints ($ioHash, $devHash, $detect, 1);
+		HMCCU_Log ($devHash, 2, "Cannot set default state- and/or control datapoints")
+			if ($rsd == 0 && $rcd == 0);
 
 		HMCCU_SetInitialAttributes ($ioHash, $name);
 
@@ -248,9 +248,9 @@ sub HMCCUCHN_Attr ($@)
 				if (exists($clHash->{hmccu}{roleCmds}) &&
 					(!exists($clHash->{hmccu}{control}{chn}) || $clHash->{hmccu}{control}{chn} eq ''));
 			if ($init_done) {
-				if (!HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash)) {
-					HMCCU_Log ($clHash, 2, "Cannot set default state- and control datapoints");
-				}
+				my ($sc, $sd, $cc, $cd, $rsd, $rcd) = HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash);
+				HMCCU_Log ($clHash, 2, "Cannot set default state- and/or control datapoints")
+					if ($rsd == 0 && $rcd == 0);
 			}		
 		}
 	}

@@ -6812,10 +6812,8 @@ sub HMCCU_UpdateAdditionalCommands ($$;$$)
 	$cc //= '';
 	$cd //= '';
 
-	if ($cd eq '' || $cc eq '') {
-		HMCCU_Log ($clHash, 2, "Can't add additional commands because no control channel and/or datapoint defined".stacktraceAsString(undef));
-		return;
-	}
+	# No controldatapoint available (read only device)
+	return if ($cd eq '' || $cc eq '');
 
 	my $s = exists($clHash->{hmccu}{cmdList}{set}) && $clHash->{hmccu}{cmdList}{set} ne '' ? ' ' : '';
 	my ($addr, $chn) = HMCCU_SplitChnAddr ($clHash->{ccuaddr});
@@ -7481,6 +7479,7 @@ sub HMCCU_CheckParameter ($$;$$$)
 # Parameter d specifies the value to be set:
 #   state, control, statechannel, statedatapoint, controlchannel,
 #   controldatapoint
+# Parameter r contains the role.
 ######################################################################
 
 sub HMCCU_SetSCDatapoints ($$;$$)
@@ -7538,27 +7537,37 @@ sub HMCCU_SetSCDatapoints ($$;$$)
 # Set default state and control datapoint
 ######################################################################
 
-sub HMCCU_SetDefaultSCDatapoints ($$;$)
+sub HMCCU_SetDefaultSCDatapoints ($$;$$)
 {
-	my ($ioHash, $clHash, $detect) = @_;
+	my ($ioHash, $clHash, $detect, $cmd) = @_;
 
 	$detect //= HMCCU_DetectDevice ($ioHash, $clHash->{ccuaddr}, $clHash->{ccuif});
-	return 0 if (!defined($detect));
+	return ('', '', '', '', 0, 0) if (!defined($detect));
+	$cmd //= 0;
 
 	my $si = HMCCU_GetSCInfo ($detect, 0);	# State info
 	my $ci = HMCCU_GetSCInfo ($detect, 1);	# Control info
-	return 0 if (!defined($si) && !defined($ci));
-		
+	return ('', '', '', '', 0, 0) if (!defined($si) && !defined($ci));
+
 	HMCCU_SetSCDatapoints ($clHash, 'statedatapoint', $detect->{defSDP}, $si->{role});
 	HMCCU_SetSCDatapoints ($clHash, 'controldatapoint', $detect->{defCDP}, $ci->{role});
 
-	my $chn = $detect->{defCCh} != -1 ? $detect->{defCCh} : $detect->{defSCh};
-	my $dpt = defined($ci) ? $ci->{datapoint} : $si->{datapoint};
+	if ($cmd) {
+		my $chn = $detect->{defCCh} != -1 ? $detect->{defCCh} : $detect->{defSCh};
+		my $dpt = defined($ci) ? $ci->{datapoint} : $si->{datapoint};
 
-	HMCCU_UpdateRoleCommands ($ioHash, $clHash, $chn);
-	HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $chn, $dpt);
+		HMCCU_UpdateRoleCommands ($ioHash, $clHash, $chn);
+		HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $chn, $dpt);
+	}
 
-	return 1;
+	my $sc = $clHash->{hmccu}{state}{chn} // '';
+	my $sd = $clHash->{hmccu}{state}{dpt} // '';
+	my $cc = $clHash->{hmccu}{control}{chn} // '';
+	my $cd = $clHash->{hmccu}{control}{dpt} // '';
+	my $rsd = $sc ne '' && $sd ne '' ? 1 : 0;
+	my $rcd = $cc ne '' && $cd ne '' ? 1 : 0;
+
+	return ($sc, $sd, $cc, $cd, $rsd, $rcd);
 }
 
 ######################################################################
@@ -7600,17 +7609,7 @@ sub HMCCU_GetSCDatapoints ($)
 	($sc, $sd, $cc, $cd, $rsdCnt, $rcdCnt) = HMCCU_DetectSCAttr ($clHash, $sc, $sd, $cc, $cd);
 	return ($sc, $sd, $cc, $cd, 1, 1) if ($rsdCnt == 1 && $rcdCnt == 1);
 
-	HMCCU_Log ($clHash, 2, "GetSCDatapoints: Datapoints not detected by attribute");
-	my $rc = HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash);
-	HMCCU_Log ($clHash, 2, "SetDefaultSCDatapints returned $rc");
-
-	return (
-		exists($clHash->{hmccu}{state}{chn}) ? $clHash->{hmccu}{state}{chn} : '',
-		exists($clHash->{hmccu}{state}{dpt}) ? $clHash->{hmccu}{state}{dpt} : '',
-		exists($clHash->{hmccu}{control}{chn}) ? $clHash->{hmccu}{control}{chn} : '',
-		exists($clHash->{hmccu}{control}{dpt}) ? $clHash->{hmccu}{control}{dpt} : '',
-		1, 1
-	)
+	return HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash);
 }
 
 sub HMCCU_DetectSCAttr ($$$$$)
