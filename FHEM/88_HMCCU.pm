@@ -32,7 +32,7 @@ no if $] >= 5.017011, warnings => 'experimental::smartmatch';
 use strict;
 use warnings;
 # use Data::Dumper;
-use IO::File;
+# use IO::File;
 use Encode qw(decode encode);
 use RPC::XML::Client;
 use RPC::XML::Server;
@@ -1042,7 +1042,7 @@ sub HMCCU_Notify ($$)
 				my $refreshAttrList = 'ccucalculate|ccuflags|ccureadingfilter|ccureadingformat|'.
 					'ccureadingname|ccuReadingPrefix|ccuscaleval|controldatapoint|hmstatevals|'.
 					'statedatapoint|statevals|substitute:textField-long|substexcl|stripnumber';
-				my $cmdAttrList = 'statechannel|statedatapoint|controlchannel|controldatapoint';
+				my $cmdAttrList = 'statechannel|statedatapoint|controlchannel|controldatapoint|statevals';
 
 				my ($aCmd, $aDev, $aAtt, $aVal) = split (/\s+/, $event);
 				$aAtt = $aVal if ($aCmd eq 'DELETEATTR');
@@ -1052,7 +1052,7 @@ sub HMCCU_Notify ($$)
 						if ($aAtt =~ /^($cmdAttrList)$/) {
 							my ($sc, $sd, $cc, $cd, $sdCnt, $cdCnt) = HMCCU_GetSCDatapoints ($hash);
 							if ($cdCnt < 2) {
-								HMCCU_Log ($hash, 2, "Notify Attr: Updating role commands");
+								HMCCU_Log ($hash, 2, "Notify Attr: Updating role commands. $event");
 								HMCCU_UpdateRoleCommands ($hash, $clHash, $cc);
 								HMCCU_UpdateAdditionalCommands ($hash, $clHash, $cc, $cd);
 							}
@@ -6514,26 +6514,37 @@ sub HMCCU_SetDefaultAttributes ($;$)
 	my $ioHash = HMCCU_GetHash ($clHash);
 	my $clName = $clHash->{NAME};
 	
-	my ($sc, $sd, $cc, $cd) = HMCCU_GetSCDatapoints ($clHash);
 	$parRef //= { mode => 'update', role => undef, roleChn => undef };
-	my $role = $parRef->{role} // HMCCU_GetChannelRole ($clHash, $parRef->{roleChn} // $cc);
+	my $role;
+
+	if ($parRef->{mode} eq 'reset') {
+		my @removeAttr = ('ccureadingname', 'ccuscaleval', 'eventMap', 'cmdIcon',
+			'substitute', 'webCmd', 'widgetOverride'
+		);
+		my $detect = HMCCU_DetectDevice ($ioHash, $clHash->{ccuaddr}, $clHash->{ccuif});
+		if (defined($detect) && $detect->{level} > 0) {
+			my ($sc, $sd, $cc, $cd, $rsd, $rcd) = HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash, $detect, 1);
+			HMCCU_Log ($clHash, 2, "Cannot set default state- and/or control datapoints")
+				if ($rsd == 0 && $rcd == 0);
+			
+			$role = HMCCU_GetChannelRole ($clHash, $detect->{defCCh});
+
+			HMCCU_SetInitialAttributes ($ioHash, $clName);
+
+			push @removeAttr, 'statechannel', 'statedatapoint' if ($detect->{defSCh} != -1);
+			push @removeAttr, 'controlchannel', 'controldatapoint', 'statevals' if ($detect->{defCCh} != -1);
+		}
+		foreach my $a (@removeAttr) {
+			CommandDeleteAttr (undef, "$clName $a") if (exists($attr{$clName}{$a}));
+		}
+	}
+	else {
+		my ($sc, $sd, $cc, $cd) = HMCCU_GetSCDatapoints ($clHash);
+		$role = $parRef->{role} // HMCCU_GetChannelRole ($clHash, $parRef->{roleChn} // $cc);
+	}
 
 	if ($role ne '') {
 		$clHash->{hmccu}{semDefaults} = 1;
-		
-		# Delete obsolete attributes
-		if ($parRef->{mode} eq 'reset') {
-			my @removeAttr = ('ccureadingname', 'ccuscaleval', 'eventMap', 'cmdIcon',
-				'substitute', 'webCmd', 'widgetOverride'
-			);
-			my $detect = HMCCU_DetectDevice ($ioHash, $clHash->{ccuaddr}, $clHash->{ccuif});
-			if (defined($detect) && ($detect->{level} == 1 || ($detect->{level} == 2 && $clHash->{TYPE} eq 'HMCCUCHN'))) {
-				push @removeAttr, 'statechannel', 'statedatapoint', 'controlchannel', 'controldatapoint', 'statevals'
-			}
-			foreach my $a (@removeAttr) {
-				CommandDeleteAttr (undef, "$clName $a") if (exists($attr{$clName}{$a}));
-			}
-		}
 		
 		# Set additional attributes
 		if (exists($HMCCU_ATTR->{$role}) && !exists($HMCCU_ATTR->{$role}{_none_})) {
@@ -6813,9 +6824,12 @@ sub HMCCU_UpdateAdditionalCommands ($$;$$)
 	$cd //= '';
 
 	# No controldatapoint available (read only device)
-	return if ($cd eq '' || $cc eq '');
+	if ($cd eq '' || $cc eq '') {
+		HMCCU_Log ($clHash, 3, "No control datapoint. Maybe device is read only");
+		return;
+	}
 
-	my $s = exists($clHash->{hmccu}{cmdList}{set}) && $clHash->{hmccu}{cmdList}{set} ne '' ? ' ' : '';
+	my $s = exists($clHash->{hmccu}{cmdlist}{set}) && $clHash->{hmccu}{cmdlist}{set} ne '' ? ' ' : '';
 	my ($addr, $chn) = HMCCU_SplitChnAddr ($clHash->{ccuaddr});
 
 	# Check if role of control channel is supported by HMCCU
@@ -6827,6 +6841,9 @@ sub HMCCU_UpdateAdditionalCommands ($$;$$)
 		my @states = keys %stateCmds;
 		$clHash->{hmccu}{cmdlist}{set} .= $s.'toggle:noArg' if (scalar(@states) > 1);
 		return;
+	}
+	else {
+		HMCCU_Log ($clHash, 3, "Can't get role of channel $cc");
 	}
 
 	my $sv = AttrVal ($clHash->{NAME}, 'statevals', '');
@@ -6851,13 +6868,13 @@ sub HMCCU_UpdateAdditionalCommands ($$;$$)
 				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcmd}{'000'}{dpt}     = $cd;
 				$clHash->{hmccu}{roleCmds}{set}{$cmd}{subcmd}{'000'}{fnc}     = '';
 			}
-			$clHash->{hmccu}{cmdList}{set} .= $s.join(' ', map { $_ . ':noArg' } @states)
+			$clHash->{hmccu}{cmdlist}{set} .= $s.join(' ', map { $_ . ':noArg' } @states)
 				if (scalar(@states) > 0);
-			$clHash->{hmccu}{cmdList}{set} .= ' toggle:noArg'
+			$clHash->{hmccu}{cmdlist}{set} .= ' toggle:noArg'
 				if (scalar(@states) > 1);
 		}
 		else {
-			HMCCU_Log ($ioHash, 3, "Can't get definition of datapoint $addr:$cc.$cd. Ignoring commands ".join(',',@states)." for device $clHash->{NAME}");
+			HMCCU_Log ($clHash, 3, "Can't get definition of datapoint $addr:$cc.$cd. Ignoring commands ".join(',',@states)." for device $clHash->{NAME}");
 		}
 	}
 }
@@ -7214,6 +7231,7 @@ sub HMCCU_ExecuteToggleCommand ($@)
 	# Get state values related to control channel and datapoint
 	my ($sc, $sd, $cc, $cd) = HMCCU_GetSCDatapoints ($clHash);
 	my $stateVals = HMCCU_GetStateValues ($clHash, $cd, $cc);
+	HMCCU_Log ($clHash, 2, "stateVals=$stateVals");
 	my %stateCmds = split (/[:,]/, $stateVals);
 	my @states = keys %stateCmds;
 	
@@ -7225,6 +7243,8 @@ sub HMCCU_ExecuteToggleCommand ($@)
 	my $curState = defined($clHash->{hmccu}{dp}{"$cc.$cd"}{VALUES}{SVAL}) ?
 		$clHash->{hmccu}{dp}{"$cc.$cd"}{VALUES}{SVAL} : $states[0];
 
+	HMCCU_Log ($clHash, 2, "curState=$curState");
+
 	my $newState = '';
 	my $st = 0;
 	while ($st < $stc) {
@@ -7234,6 +7254,8 @@ sub HMCCU_ExecuteToggleCommand ($@)
 		}
 		$st++;
 	}
+
+	HMCCU_Log ($clHash, 2, "newState=$newState, stc=$stc");
 
 	return HMCCU_SetError ($clHash, "Current device state doesn't match any state value")
 		if ($newState eq '');
@@ -7288,10 +7310,10 @@ sub HMCCU_ExecuteGetDeviceInfoCommand ($@)
 			"<br/>Failed to detect device settings. Device must be configured manually.<br/>";
 		if ($extended) {
 			$devInfo .=  "<br/>Detection level: $detect->{level}<br/>".
-				"<br/>Detected default state datapoint: $detect->{defSCh}.$detect->{defSDP}<br/>".	
-				"<br/>Detected default control datapoint: $detect->{defCCh}.$detect->{defCDP}<br/>".
+				"<br/>Detected default state datapoint: $detect->{defSDP}<br/>".	
+				"<br/>Detected default control datapoint: $detect->{defCDP}<br/>".
 				"<br/>Unique state roles: $detect->{uniqueStateRoleCount}<br/>".
-				"<br/>Unique state roles: $detect->{uniqueControlRoleCount}<br/>";		
+				"<br/>Unique control roles: $detect->{uniqueControlRoleCount}<br/>";		
 		}
 	}
 	$devInfo .= "<br/>Current state datapoint = $sc.$sd<br/>";
@@ -7479,6 +7501,7 @@ sub HMCCU_CheckParameter ($$;$$$)
 # Parameter d specifies the value to be set:
 #   state, control, statechannel, statedatapoint, controlchannel,
 #   controldatapoint
+# If parameter v is missing, the attribute is deleted
 # Parameter r contains the role.
 ######################################################################
 
@@ -7499,6 +7522,8 @@ sub HMCCU_SetSCDatapoints ($$;$$)
 	my $chn;
 	my $dpt;
 	my $f = $flags{$d} // return 0;
+
+	# d becomes the hash key: state or control
 	$d =~ s/^(state|control)(channel|datapoint)$/$1/;
 
 	if (defined($v)) {
@@ -7545,24 +7570,42 @@ sub HMCCU_SetDefaultSCDatapoints ($$;$$)
 	return ('', '', '', '', 0, 0) if (!defined($detect));
 	$cmd //= 0;
 
-	my $si = HMCCU_GetSCInfo ($detect, 0);	# State info
-	my $ci = HMCCU_GetSCInfo ($detect, 1);	# Control info
+	my $si = HMCCU_GetSCInfo ($detect, 0);	# State info of default state datapoint
+	my $ci = HMCCU_GetSCInfo ($detect, 1);	# Control info of default control datapoint
 	return ('', '', '', '', 0, 0) if (!defined($si) && !defined($ci));
 
-	HMCCU_SetSCDatapoints ($clHash, 'statedatapoint', $detect->{defSDP}, $si->{role});
-	HMCCU_SetSCDatapoints ($clHash, 'controldatapoint', $detect->{defCDP}, $ci->{role});
+	my $sc = AttrVal ($clHash->{NAME}, 'statechannel', '');
+	my $cc = AttrVal ($clHash->{NAME}, 'controlchannel', '');
+	my $sd = '';
+	my $cd = '';
+
+	# Consider attributes statechannel and controlchannel
+	if ($sc ne '' && exists($detect->{stateRole}{$sc})) {
+		HMCCU_SetSCDatapoints ($clHash, 'statedatapoint', $sc.'.'.$detect->{stateRole}{$sc}{datapoint}, $detect->{stateRole}{$sc}{role});
+	}
+	else {
+		$sc = $detect->{defSCh};
+		HMCCU_SetSCDatapoints ($clHash, 'statedatapoint', $detect->{defSDP}, $si->{role});
+	}
+	if ($cc ne '' && exists($detect->{controlRole}{$cc})) {
+		HMCCU_SetSCDatapoints ($clHash, 'controldatapoint', $cc.'.'.$detect->{controlRole}{$cc}{datapoint}, $detect->{controlRole}{$cc}{role});
+	}
+	else {
+		$cc = $detect->{defCCh};
+		HMCCU_SetSCDatapoints ($clHash, 'controldatapoint', $detect->{defCDP}, $ci->{role});
+	}
 
 	if ($cmd) {
-		my $chn = $detect->{defCCh} != -1 ? $detect->{defCCh} : $detect->{defSCh};
+		my $chn = $cc != -1 ? $cc : $sc;
 		my $dpt = defined($ci) ? $ci->{datapoint} : $si->{datapoint};
 
 		HMCCU_UpdateRoleCommands ($ioHash, $clHash, $chn);
 		HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $chn, $dpt);
 	}
 
-	my $sc = $clHash->{hmccu}{state}{chn} // '';
+	$sc = $clHash->{hmccu}{state}{chn} // '';
 	my $sd = $clHash->{hmccu}{state}{dpt} // '';
-	my $cc = $clHash->{hmccu}{control}{chn} // '';
+	$cc = $clHash->{hmccu}{control}{chn} // '';
 	my $cd = $clHash->{hmccu}{control}{dpt} // '';
 	my $rsd = $sc ne '' && $sd ne '' ? 1 : 0;
 	my $rcd = $cc ne '' && $cd ne '' ? 1 : 0;
@@ -7830,7 +7873,7 @@ sub HMCCU_DetectSCDev ($;$$$$)
 #         roles (i.e. roles KEY and THERMALCONTROL) => HMCCUDEV
 #     4 = device type detected with different state and control role
 #         (>=2 different channels) => HMCCUDEV
-#     5 = device type detected with one or more 4-channel-groups
+#     5 = device type detected with one or more 4-channel-groups (1xState,3xControl)
 #
 # Structure of stateRole / controlRole hashes:
 #   int <channel>: Channel number (key)
@@ -8646,13 +8689,16 @@ sub HMCCU_ScaleValue ($$$$$;$)
 	my $name = $hash->{NAME};
 	my $ioHash = HMCCU_GetHash ($hash);
 	
+	# Only numeric values allowed
+	return $value if (!HMCCU_IsFltNum ($value));
+
 	# Get parameter definition and min/max values
 	my $min;
 	my $max;
 	my $unit;
 	my $ccuaddr = $hash->{ccuaddr};
 	$ccuaddr .= ':'.$chnno if ($hash->{TYPE} eq 'HMCCUDEV' && $chnno ne ''); 
-	my $paramDef = HMCCU_GetParamDef ($ioHash, $ccuaddr, 'VALUES', $dpt);
+	my $paramDef = HMCCU_GetParamDef ($ioHash, $ccuaddr, $paramSet, $dpt);
 	if (defined($paramDef)) {
 		$min = $paramDef->{MIN} if (defined($paramDef->{MIN}) && $paramDef->{MIN} ne '');
 		$max = $paramDef->{MAX} if (defined($paramDef->{MAX}) && $paramDef->{MAX} ne '');
