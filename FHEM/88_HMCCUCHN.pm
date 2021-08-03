@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUCHN.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.042
+#  Version 4.4.043
 #
 #  (c) 2021 zap (zap01 <at> t-online <dot> de)
 #
@@ -82,6 +82,7 @@ sub HMCCUCHN_Define ($@)
 	$hash->{hmccu}{channels} = 1;
 	$hash->{hmccu}{nodefaults} = $init_done ? 0 : 1;
 	$hash->{hmccu}{semDefaults} = 0;
+	$hash->{hmccu}{detect} = 0;
 	
 	# Parse optional command line parameters
 	my $n = 0;
@@ -168,7 +169,7 @@ sub HMCCUCHN_InitDevice ($$)
 		HMCCU_UpdateDevice ($ioHash, $devHash);
 		HMCCU_UpdateDeviceRoles ($ioHash, $devHash);
 		
-		return -2 if (!defined($detect) || $detect->{level} == 0);   # Device not detected
+		return -2 if (!defined($detect) || $detect->{level} == 0);
 
 		my ($sc, $sd, $cc, $cd, $rsd, $rcd) = HMCCU_SetDefaultSCDatapoints ($ioHash, $devHash, $detect, 1);
 		HMCCU_Log ($devHash, 2, "Cannot set default state- and/or control datapoints")
@@ -233,7 +234,8 @@ sub HMCCUCHN_Attr ($@)
 			$clHash->{IODev} = $defs{$attrval};
 		}
 		elsif ($attrname eq 'statevals') {
-			return 'Device is read only' if ($clHash->{readonly} eq 'yes');
+			return 'Attribute statevals ignored. Device is read only' if ($clHash->{readonly} eq 'yes');
+			return 'Attribute statevals ignored. Device type is known by HMCCU' if ($clHash->{hmccu}{detect} > 0);
 		}
 		elsif ($attrname =~ /^(state|control)datapoint$/) {
 			my $role = HMCCU_GetChannelRole ($clHash);

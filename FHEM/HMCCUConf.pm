@@ -326,16 +326,16 @@ $HMCCU_CONFIG_VERSION = '4.8.031';
 		'pct' => 'V:LEVEL:?level V:ON_TIME:?time=0.0 V:RAMP_TIME:?ramp=0.5',
 		'on' => 'V:LEVEL:100',
 		'off' => 'V:LEVEL:0',
-		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
-		'on-till' => 'V:ON_TIME:?time V:STATE:1',
+		'on-for-timer' => 'V:ON_TIME:?duration V:LEVEL:100',
+		'on-till' => 'V:ON_TIME:?time V:LEVEL:100',
 		'stop' => 'V:RAMP_STOP:1'
 	},
 	'DIMMER_VIRTUAL_RECEIVER' => {
 		'pct' => 'V:LEVEL:?level V:ON_TIME:?time V:RAMP_TIME:?ramp',
 		'on' => 'V:LEVEL:100',
 		'off' => 'V:LEVEL:0',
-		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
-		'on-till' => 'V:ON_TIME:?time V:STATE:1'
+		'on-for-timer' => 'V:ON_TIME:?duration V:LEVEL:100',
+		'on-till' => 'V:ON_TIME:?time V:LEVEL:100'
 	},
 	'THERMALCONTROL_TRANSMIT' => {
 		'desired-temp' => 'V:SET_TEMPERATURE:?temperature',

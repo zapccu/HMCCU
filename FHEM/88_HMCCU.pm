@@ -1048,7 +1048,8 @@ sub HMCCU_Notify ($$)
 				$aAtt = $aVal if ($aCmd eq 'DELETEATTR');
 				if (defined($aAtt)) {
 					my $clHash = $defs{$aDev};
-					if (defined($clHash->{TYPE}) && ($clHash->{TYPE} eq 'HMCCUCHN' || $clHash->{TYPE} eq 'HMCCUDEV')) {
+					if (defined($clHash->{TYPE}) && ($clHash->{TYPE} eq 'HMCCUCHN' || $clHash->{TYPE} eq 'HMCCUDEV') &&
+						(!defined($clHash->{hmccu}{semDefaults}) || $clHash->{hmccu}{semDefaults} == 0)) {
 						if ($aAtt =~ /^($cmdAttrList)$/) {
 							my ($sc, $sd, $cc, $cd, $sdCnt, $cdCnt) = HMCCU_GetSCDatapoints ($hash);
 							if ($cdCnt < 2) {
@@ -3562,6 +3563,7 @@ sub HMCCU_SetSCAttributes ($$;$)
 	# Detect device and initialize attribute lists for statedatapoint and controldatapoint
 	my @userattr = grep (!/statedatapoint|controldatapoint/, split(' ', $modules{$clHash->{TYPE}}{AttrList}));
 	if (defined($detect) && $detect->{level} > 0) {
+		$clHash->{hmccu}{detect} = $detect->{level};
 		if ($type eq 'HMCCUDEV') {
 			push @userattr, 'statedatapoint:select,'.
 				join(',', sort map { $_.'.'.$detect->{stateRole}{$_}{datapoint} } keys %{$detect->{stateRole}})
@@ -3582,6 +3584,7 @@ sub HMCCU_SetSCAttributes ($$;$)
 	else {
 		push @userattr, 'statedatapoint:select,'.join(',', sort @dpRead) if ($dpReadCnt > 0);
 		push @userattr, 'controldatapoint:select,'.join(',', sort @dpWrite) if ($dpWriteCnt > 0);
+		$clHash->{hmccu}{detect} = 0;
 	}
 	
 	# Make sure that generic attributes are available, if no role attributes found
@@ -6518,9 +6521,11 @@ sub HMCCU_SetDefaultAttributes ($;$)
 	my $role;
 
 	if ($parRef->{mode} eq 'reset') {
+		# List of attributes to be removed
 		my @removeAttr = ('ccureadingname', 'ccuscaleval', 'eventMap', 'cmdIcon',
 			'substitute', 'webCmd', 'widgetOverride'
 		);
+
 		my $detect = HMCCU_DetectDevice ($ioHash, $clHash->{ccuaddr}, $clHash->{ccuif});
 		if (defined($detect) && $detect->{level} > 0) {
 			my ($sc, $sd, $cc, $cd, $rsd, $rcd) = HMCCU_SetDefaultSCDatapoints ($ioHash, $clHash, $detect, 1);
@@ -6531,11 +6536,21 @@ sub HMCCU_SetDefaultAttributes ($;$)
 
 			HMCCU_SetInitialAttributes ($ioHash, $clName);
 
+			# Remove additional attributes if device type is supported by HMCCU
 			push @removeAttr, 'statechannel', 'statedatapoint' if ($detect->{defSCh} != -1);
 			push @removeAttr, 'controlchannel', 'controldatapoint', 'statevals' if ($detect->{defCCh} != -1);
+
+			# Remove attributes
+			HMCCU_DeleteAttributes ($clHash, \@removeAttr, 1);
+
+			# Update command tables
+			HMCCU_UpdateRoleCommands ($ioHash, $clHash, $cc);
+			HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $cc, $cd);
 		}
-		foreach my $a (@removeAttr) {
-			CommandDeleteAttr (undef, "$clName $a") if (exists($attr{$clName}{$a}));
+		else {
+			HMCCU_Log ($clHash, 2, "Device type not detected");
+			# Remove attributes
+			HMCCU_DeleteAttributes ($clHash, \@removeAttr, 1);
 		}
 	}
 	else {
@@ -6563,6 +6578,23 @@ sub HMCCU_SetDefaultAttributes ($;$)
 }
 
 ######################################################################
+# Delete list of attributes
+######################################################################
+
+sub HMCCU_DeleteAttributes ($$;$)
+{
+	my ($clHash, $attrList, $sem) = @_;
+	$sem //= 0;
+	my $clName = $clHash->{NAME};
+
+	$clHash->{hmccu}{semDefaults} = $sem;
+	foreach my $a (@$attrList) {
+		CommandDeleteAttr (undef, "$clName $a") if (exists($attr{$clName}{$a}));
+	}
+	$clHash->{hmccu}{semDefaults} = 0;
+}
+
+######################################################################
 # Get state values of client device
 # Return '' if no state values available
 ######################################################################
@@ -6573,7 +6605,6 @@ sub HMCCU_GetStateValues ($;$$)
 	$dpt //= '';
 	$ctrlChn //= '';
 
-	HMCCU_Trace ($clHash, 2, "dpt=$dpt, ctrlChn=$ctrlChn");
 	my $sv = AttrVal ($clHash->{NAME}, 'statevals', '');
 	if ($sv eq '' && $dpt ne '' && $ctrlChn ne '') {
 		my $role = HMCCU_GetChannelRole ($clHash, $ctrlChn);
