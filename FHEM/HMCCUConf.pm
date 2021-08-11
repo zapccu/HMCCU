@@ -4,7 +4,7 @@
 #
 #  $Id: HMCCUConf.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.8.031
+#  Version 4.8.032
 #
 #  Configuration parameters for HomeMatic devices.
 #
@@ -28,7 +28,7 @@ use vars qw(%HMCCU_CHN_DEFAULTS);
 use vars qw(%HMCCU_DEV_DEFAULTS);
 use vars qw(%HMCCU_SCRIPTS);
 
-$HMCCU_CONFIG_VERSION = '4.8.031';
+$HMCCU_CONFIG_VERSION = '4.8.032';
 
 ######################################################################
 # Map subtype to default role. Subtype is only available for HMIP
@@ -233,10 +233,13 @@ $HMCCU_CONFIG_VERSION = '4.8.031';
 # Set commands related to channel role
 #   Role => { Command-Definition, ... }
 # Command-Defintion:
-#   Command[:InterfaceExpr] => 'Datapoint-Definition[:Function] [...]'
+#   Command[:InterfaceExpr] => [No:]Datapoint-Def[:Function] [...]'
+# No:
+#   Execution order of subcommands. By default subcommands are
+#   executed from left to right.
 # Function:
 #   A Perl function name
-# Datapoint-Definition:
+# Datapoint-Def:
 #   Paramset:Datapoint:[Parameter=]FixedValue
 #   Paramset:Datapoint:?Parameter
 #   Paramset:Datapoint:?Parameter=Default-Value
@@ -323,19 +326,23 @@ $HMCCU_CONFIG_VERSION = '4.8.031';
 		'on-till' => 'V:ON_TIME:?time V:STATE:1'
 	},
 	'DIMMER' => {
-		'pct' => 'V:LEVEL:?level V:ON_TIME:?time=0.0 V:RAMP_TIME:?ramp=0.5',
+		'pct' => '3:V:LEVEL:?level 1:V:ON_TIME:?time=0.0 2:V:RAMP_TIME:?ramp=0.5',
 		'on' => 'V:LEVEL:100',
 		'off' => 'V:LEVEL:0',
 		'on-for-timer' => 'V:ON_TIME:?duration V:LEVEL:100',
 		'on-till' => 'V:ON_TIME:?time V:LEVEL:100',
+		'up' => 'V:LEVEL:?delta=+10',
+		'down' => 'V:LEVEL:?delta=-10',
 		'stop' => 'V:RAMP_STOP:1'
 	},
 	'DIMMER_VIRTUAL_RECEIVER' => {
-		'pct' => 'V:LEVEL:?level V:ON_TIME:?time V:RAMP_TIME:?ramp',
+		'pct' => '3:V:LEVEL:?level 1:V:ON_TIME:?time=0.0 2:V:RAMP_TIME:?ramp=0.5',
 		'on' => 'V:LEVEL:100',
 		'off' => 'V:LEVEL:0',
 		'on-for-timer' => 'V:ON_TIME:?duration V:LEVEL:100',
-		'on-till' => 'V:ON_TIME:?time V:LEVEL:100'
+		'on-till' => 'V:ON_TIME:?time V:LEVEL:100',
+		'up' => 'V:LEVEL:?delta=+10',
+		'down' => 'V:LEVEL:?delta=-10',
 	},
 	'THERMALCONTROL_TRANSMIT' => {
 		'desired-temp' => 'V:SET_TEMPERATURE:?temperature',
@@ -387,6 +394,10 @@ $HMCCU_CONFIG_VERSION = '4.8.031';
 	},
 	'MOTION_DETECTOR' => {
 		'_none_' => ''
+	},
+	'DOOR_LOCK_STATE_TRANSMITTER' => {
+		'cmdIcon' => 'open:fts_door_open unlock:secur_open lock:secur_lock',
+		'webCmd' => 'lock:unlock:open'
 	},
 	'MOTIONDETECTOR_TRANSCEIVER' => {
 		'cmdIcon' => 'reset:rc_BACK',

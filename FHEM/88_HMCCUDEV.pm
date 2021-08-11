@@ -150,7 +150,7 @@ sub HMCCUDEV_Define ($@)
 	my $rc = HMCCUDEV_InitDevice ($ioHash, $hash);
 	if (HMCCU_IsIntNum ($rc)) {
 		return $errmsg[$rc] if ($rc > 0 && $rc < scalar(@errmsg));
-		HMCCU_LogDisplay ($hash, 2, $warnmsg[-$rc]) if ($init_done && $rc < 0 && -$rc < scalar(@warnmsg));
+		HMCCU_LogDisplay ($hash, 2, $warnmsg[-$rc]) if ($rc < 0 && -$rc < scalar(@warnmsg));
 		return undef;
 	}
 	else {
@@ -169,7 +169,8 @@ sub HMCCUDEV_Define ($@)
 # 5 = Type of virtual device not defined
 # 6 = Device type not found
 # 7 = Too many virtual devices
-# -1 = Control channel must be specified
+# -1 = Control channel ambiguous
+# -2 = Device type not known by HMCCU
 ######################################################################
 
 sub HMCCUDEV_InitDevice ($$)
@@ -213,7 +214,7 @@ sub HMCCUDEV_InitDevice ($$)
 		return -2 if (!defined($detect) || $detect->{level} == 0);
 
 		my ($sc, $sd, $cc, $cd, $rsd, $rcd) = HMCCU_SetDefaultSCDatapoints ($ioHash, $devHash, $detect, 1);
-		HMCCU_Log ($devHash, 2, "Cannot set default state- and/or control datapoints")
+		HMCCU_Log ($devHash, 2, "Cannot set default state- and/or control datapoints. Maybe device type not known by HMCCU")
 			if ($rsd == 0 && $rcd == 0);
 
 		HMCCU_SetInitialAttributes ($ioHash, $name);
@@ -313,6 +314,9 @@ sub HMCCUDEV_Attr ($@)
 		elsif ($attrname eq 'statevals') {
 			return 'Attribute statevals ignored. Device is read only' if ($clHash->{readonly} eq 'yes');
 			return 'Attribute statevals ignored. Device type is known by HMCCU' if ($clHash->{hmccu}{detect} > 0);
+			if ($init_done && !HMCCU_IsValidControlDatapoint ($clHash)) {
+				HMCCU_LogDisplay ($clHash, 2, 'Warning: Attribute controldatapoint not set or set to invalid datapoint');
+			}
 		}
 		elsif ($attrname =~ /^(state|control)(channel|datapoint)$/) {
 			my $chn = $attrval;
@@ -331,11 +335,11 @@ sub HMCCUDEV_Attr ($@)
 
 			my $role = HMCCU_GetChannelRole ($clHash, $chn);
 			return "Invalid value $attrval" if (!HMCCU_SetSCDatapoints ($clHash, $attrname, $attrval, $role));
-			if ($init_done && exists($clHash->{hmccu}{control}{chn}) && $clHash->{hmccu}{control}{chn} ne '') {
-				HMCCU_Log ($clHash, 2, "HMCCUDEV Attr updating role commands");
-				HMCCU_UpdateRoleCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn});
-				HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn}, $clHash->{hmccu}{control}{dpt});
-			}
+			# if ($init_done && exists($clHash->{hmccu}{control}{chn}) && $clHash->{hmccu}{control}{chn} ne '') {
+			# 	HMCCU_Log ($clHash, 2, "HMCCUDEV Attr updating role commands");
+			# 	HMCCU_UpdateRoleCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn});
+			# 	HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn}, $clHash->{hmccu}{control}{dpt});
+			# }
 		}
 	}
 	elsif ($cmd eq 'del') {
