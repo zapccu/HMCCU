@@ -6550,7 +6550,7 @@ sub HMCCU_SetDefaultAttributes ($;$)
 			HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $cc, $cd);
 		}
 		else {
-			HMCCU_Log ($clHash, 2, "Device type not detected");
+			HMCCU_LogDisplay ($clHash, 2, "Device type $clHash->{ccutype} not known by HMCCU");
 			# Remove attributes
 			HMCCU_DeleteAttributes ($clHash, \@removeAttr, 1);
 		}
