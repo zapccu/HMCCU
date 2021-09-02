@@ -1,7 +1,7 @@
 # HMCCU
 Module for FHEM - Homematic CCU Integration
 
-Version 4.4 beta
+Version 5.0
 
 <h2>Installation</h2>
 Warning! This is a beta version of the HMCCU modules. Please backup your FHEM installation before you install it.
