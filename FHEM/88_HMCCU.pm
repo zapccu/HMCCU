@@ -32,7 +32,6 @@ no if $] >= 5.017011, warnings => 'experimental::smartmatch';
 use strict;
 use warnings;
 # use Data::Dumper;
-# use IO::File;
 use Encode qw(decode encode);
 use RPC::XML::Client;
 use RPC::XML::Server;
