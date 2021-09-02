@@ -126,6 +126,17 @@ my %RPC_METHODS = (
 );
 
 # RPC event types
+# EV = Event
+# ND = New device
+# DD = Delete device
+# RD = Replace device
+# RA = Readded device
+# UD = Update device
+# IN = Init RPC connection
+# EX = Exit RPC process
+# SL = Server loop
+# ST = Statistics (not in list of event types)
+# TO = Timeout
 my @RPC_EVENT_TYPES = ('EV', 'ND', 'DD', 'RD', 'RA', 'UD', 'IN', 'EX', 'SL', 'TO');
 
 
