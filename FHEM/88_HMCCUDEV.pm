@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUDEV.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.052
+#  Version 5.0
 #
 #  (c) 2021 zap (zap01 <at> t-online <dot> de)
 #
@@ -335,11 +335,6 @@ sub HMCCUDEV_Attr ($@)
 
 			my $role = HMCCU_GetChannelRole ($clHash, $chn);
 			return "Invalid value $attrval" if (!HMCCU_SetSCDatapoints ($clHash, $attrname, $attrval, $role));
-			# if ($init_done && exists($clHash->{hmccu}{control}{chn}) && $clHash->{hmccu}{control}{chn} ne '') {
-			# 	HMCCU_Log ($clHash, 2, "HMCCUDEV Attr updating role commands");
-			# 	HMCCU_UpdateRoleCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn});
-			# 	HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn}, $clHash->{hmccu}{control}{dpt});
-			# }
 		}
 	}
 	elsif ($cmd eq 'del') {
@@ -513,13 +508,14 @@ sub HMCCUDEV_Get ($@)
 		return HMCCU_ExecuteGetDeviceInfoCommand ($ioHash, $hash, $ccuaddr, defined($extended) ? 1 : 0);
 	}
 	elsif ($lcopt =~ /^(config|values|update)$/) {
+		my $filter = shift @$a;
 		my @addList = ($ccuaddr);
 
 		my $devDesc = HMCCU_GetDeviceDesc ($ioHash, $ccuaddr, $ccuif);
 		return HMCCU_SetError ($hash, "Can't get device description") if (!defined($devDesc));
 		push @addList, split (',', $devDesc->{CHILDREN});
 
-		my $result = HMCCU_ExecuteGetParameterCommand ($ioHash, $hash, $lcopt, \@addList);
+		my $result = HMCCU_ExecuteGetParameterCommand ($ioHash, $hash, $lcopt, \@addList, $filter);
 		return HMCCU_SetError ($hash, "Can't get device description") if (!defined($result));
 		return HMCCU_DisplayGetParameterResult ($ioHash, $hash, $result);
 	}

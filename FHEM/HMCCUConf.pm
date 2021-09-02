@@ -4,7 +4,7 @@
 #
 #  $Id: HMCCUConf.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.8.032
+#  Version 5.0
 #
 #  Configuration parameters for HomeMatic devices.
 #
@@ -28,7 +28,7 @@ use vars qw(%HMCCU_CHN_DEFAULTS);
 use vars qw(%HMCCU_DEV_DEFAULTS);
 use vars qw(%HMCCU_SCRIPTS);
 
-$HMCCU_CONFIG_VERSION = '4.8.032';
+$HMCCU_CONFIG_VERSION = '5.0';
 
 ######################################################################
 # Map subtype to default role. Subtype is only available for HMIP
@@ -64,11 +64,17 @@ $HMCCU_CONFIG_VERSION = '4.8.032';
 	'ROTARY_HANDLE_TRANSCEIVER' => {
 		F => 3, S => 'STATE', C => '', V => '', P => 2
 	},
+	'MULTI_MODE_INPUT_TRANSMITTER' => {
+		F => 3, S => 'STATE', C => '', V => '', P => 1
+	},
 	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
 		F => 3, S => 'ACOUSTIC_ALARM_ACTIVE', C => 'ACOUSTIC_ALARM_SELECTION', V => '', P => 2
 	},
 	'DOOR_LOCK_STATE_TRANSMITTER' => {
 		F => 3, S => 'LOCK_STATE', C => 'LOCK_TARGET_LEVEL', V => 'open:2,unlocked:1,locked:0'
+	},
+	'ACCELERATION_TRANSCEIVER' => {
+		F => 3, S => 'MOTION', C => '', V => '', P => 1
 	},
 	'MOTION_DETECTOR' => {
 		F => 3, S => 'MOTION', C => '', V => '', P => 1
@@ -78,6 +84,9 @@ $HMCCU_CONFIG_VERSION = '4.8.032';
 	},
 	'PRESENCEDETECTOR_TRANSCEIVER' => {
 		F => 3, S => 'PRESENCE_DETECTION_STATE', C => 'PRESENCE_DETECTION_ACTIVE', V => 'active:1,inactive:0', P => 2
+	},
+	'PASSAGE_DETECTOR_DIRECTION_TRANSMITTER' => {
+		F => 3, S => 'CURRENT_PASSAGE_DIRECTION', C => '', V => '', P => 1
 	},
 	'SMOKE_DETECTOR' => {
 		F => 3, S => 'BidCos-RF:STATE,SMOKE_DETECTOR_ALARM_STATUS', C => 'HmIP-RF:SMOKE_DETECTOR_COMMAND', V => '', P => 2
@@ -192,6 +201,8 @@ $HMCCU_CONFIG_VERSION = '4.8.032';
 		'(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
 	'VIRTUAL_KEY' =>
 		'(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
+	'ACCELERATION_TRANSCEIVER' =>
+		'(C#\.)?MOTION:motion',
 	'MOTION_DETECTOR' =>
 		'^(C#\.)?BRIGHTNESS$:brightness;(C#\.)?MOTION:motion',
 	'MOTIONDETECTOR_TRANSCEIVER' =>
@@ -240,19 +251,30 @@ $HMCCU_CONFIG_VERSION = '4.8.032';
 # Function:
 #   A Perl function name
 # Datapoint-Def:
-#   Paramset:Datapoint:[Parameter=]FixedValue
-#   Paramset:Datapoint:?Parameter
-#   Paramset:Datapoint:?Parameter=Default-Value
-#   Paramset:Datapoint:#Parameter[=FixedValue,[...]]
-#   Paramset:Datapoint:*Parameter=Default-Value
+#   Paramset:Datapoints:[Parameter=]FixedValue
+#   Paramset:Datapoints:?Parameter
+#   Paramset:Datapoints:?Parameter=Default-Value
+#   Paramset:Datapoints:#Parameter[=FixedValue,[...]]
+#   Paramset:Datapoints:*Parameter=Default-Value
 # Paramset:
 #   V=VALUES, M=MASTER (channel), D=MASTER (device), I=INTERNAL
+# Datapoints:
+#   List of parameter names separated by ','
 # Parameter characters:
 #   ? = any value is accepted
 #   # = If datapoint is of type ENUM, values are taken from
 #       parameter set description. Otherwise a list of values must
-#       be specified.
+#       be specified after '='.
 #   * = internal value $hash->{hmccu}{values}{parameterName}
+# FixedValue: Parameter values are detected in the following order:
+#   1. If command parameter name is identical with controldatapoint,
+#   option values are taken from controldatapoint definition {V}. The
+#   FixedValues are used as lookup key into HMCCU_STATECCONTROL.
+#   The command options are identical to the FixedValues.
+#   2. FixedValues are treated as option values. The option
+#   names are taken from HMCCU_CONVERSIONS by using FixedValues as
+#   lookup key.
+#   3. As a fallback command options and option values are identical.
 # If Default-Value is preceeded by + or -, value is added to or 
 # subtracted from current datapoint value
 ######################################################################
@@ -265,6 +287,9 @@ $HMCCU_CONFIG_VERSION = '4.8.032';
 	'PRESENCEDETECTOR_TRANSCEIVER' => {
 		'detection' => 'V:PRESENCE_DETECTION_ACTIVE:#detection=inactive,active',
 		'reset' => 'V:RESET_PRESENCE:1'
+	},
+	'PASSAGE_DETECTOR_DIRECTION_TRANSMITTER' => {
+		'detection' => 'M:PASSAGE_DETECTION,CHANNEL_OPERATION_MODE:#inactive,active'
 	},
 	'SMOKE_DETECTOR' => {
 		'command' => 'V:SMOKE_DETECTOR_COMMAND:#command'
@@ -392,6 +417,12 @@ $HMCCU_CONFIG_VERSION = '4.8.032';
 	'SHUTTER_CONTACT_TRANSCEIVER' => {
 		'_none_' => ''
 	},
+	'MULTI_MODE_INPUT_TRANSMITTER' => {
+		'_none_' => ''
+	},
+	'ACCELERATION_TRANSCEIVER' => {
+		'_none_' => ''
+	},
 	'MOTION_DETECTOR' => {
 		'_none_' => ''
 	},
@@ -406,6 +437,9 @@ $HMCCU_CONFIG_VERSION = '4.8.032';
 	'PRESENCEDETECTOR_TRANSCEIVER' => {
 		'cmdIcon' => 'reset:rc_BACK',
 		'webCmd' => 'detection:reset'
+	},
+	'PASSAGE_DETECTOR_DIRECTION_TRANSMITTER' => {
+		'_none_' => ''
 	},
 	'KEY' => {
 		'event-on-update-reading' => 'PRESS.*',
@@ -498,16 +532,23 @@ $HMCCU_CONFIG_VERSION = '4.8.032';
 ######################################################################
 
 %HMCCU_CONVERSIONS = (
+	'ACCELERATION_TRANSCEIVER' => {
+		'MOTION' => { '0' => 'noMotion', 'false' => 'noMotion', '1' => 'motion', 'true' => 'motion' }
+	},
 	'MOTION_DETECTOR' => {
 		'MOTION' => { '0' => 'noMotion', 'false' => 'noMotion', '1' => 'motion', 'true' => 'motion' }
 	},
 	'MOTIONDETECTOR_TRANSCEIVER' => {
 		'MOTION' => { '0' => 'noMotion', 'false' => 'noMotion', '1' => 'motion', 'true' => 'motion' },
-		'MOTION_DETECTION_ACTIVE' => { '0' => 'inactive', 'false' => 'inactive', '1' => 'active', 'true', 'active' }
+		'MOTION_DETECTION_ACTIVE' => { '0' => 'inactive', 'false' => 'inactive', '1' => 'active', 'true' => 'active' }
 	},
 	'PRESENCEDETECTOR_TRANSCEIVER' => {
 		'PRESENCE_DETECTION_STATE'  => { '0' => 'noPresence', 'false' => 'noPresence', '1' => 'presence', 'true' => 'presence' },
-		'PRESENCE_DETECTION_ACTIVE' => { '0' => 'inactive', 'false' => 'inactive', '1' => 'active', 'true', 'active' }
+		'PRESENCE_DETECTION_ACTIVE' => { '0' => 'inactive', 'false' => 'inactive', '1' => 'active', 'true' => 'active' }
+	},
+	'PASSAGE_DETECTOR_DIRECTION_TRANSMITTER' => {
+		'PASSAGE_DETECTION' => { '0' => 'inactive', 1 => 'active' },
+		'CHANNEL_OPERATION_MODE' => { '0' => 'inactive', 1 => 'active'}
 	},
 	'KEY' => {
 		'PRESS_SHORT' => { '1' => 'pressed', 'true' => 'pressed' },

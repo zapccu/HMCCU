@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCUCHN.pm 18552 2019-02-10 11:52:28Z zap $
 #
-#  Version 4.4.043
+#  Version 5.0
 #
 #  (c) 2021 zap (zap01 <at> t-online <dot> de)
 #
@@ -260,11 +260,6 @@ sub HMCCUCHN_Attr ($@)
 		elsif ($attrname =~ /^(state|control)datapoint$/) {
 			my $role = HMCCU_GetChannelRole ($clHash);
 			return "Invalid value $attrval" if (!HMCCU_SetSCDatapoints ($clHash, $attrname, $attrval, $role));
-			# if ($init_done && exists($clHash->{hmccu}{control}{chn}) && $clHash->{hmccu}{control}{chn} ne '') {
-			# 	HMCCU_Log ($clHash, 2, "HMCCUDEV Attr updating role commands");
-			# 	HMCCU_UpdateRoleCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn});
-			# 	HMCCU_UpdateAdditionalCommands ($ioHash, $clHash, $clHash->{hmccu}{control}{chn}, $clHash->{hmccu}{control}{dpt});
-			# }
 		}
 	}
 	elsif ($cmd eq 'del') {
@@ -426,9 +421,10 @@ sub HMCCUCHN_Get ($@)
 		return HMCCU_ExecuteGetDeviceInfoCommand ($ioHash, $hash, $devAddr, defined($extended) ? 1 : 0);
 	}
 	elsif ($lcopt =~ /^(config|values|update)$/) {
+		my $filter = shift @$a;
 		my ($devAddr, undef) = HMCCU_SplitChnAddr ($ccuaddr);
 		my @addList = ($devAddr, "$devAddr:0", $ccuaddr);	
-		my $result = HMCCU_ExecuteGetParameterCommand ($ioHash, $hash, $lcopt, \@addList);
+		my $result = HMCCU_ExecuteGetParameterCommand ($ioHash, $hash, $lcopt, \@addList, $filter);
 		return HMCCU_SetError ($hash, "Can't get device description") if (!defined($result));
 		return HMCCU_DisplayGetParameterResult ($ioHash, $hash, $result);
 	}
@@ -553,7 +549,7 @@ sub HMCCUCHN_Get ($@)
          <code>set myswitch on-for-timer 300</code>
       </li><br/>
       <li><b>set &lt;name&gt; on-till &lt;timestamp&gt;</b><br/>
-         [switch] Switch device on until <i>timestamp</i>. Parameter <i>timestamp</i> can be a time in
+         [switch,dimmer] Switch device on until <i>timestamp</i>. Parameter <i>timestamp</i> can be a time in
          format HH:MM or HH:MM:SS. This command is only available if channel contains a datapoint
          ON_TIME. 
       </li><br/>
@@ -601,8 +597,9 @@ sub HMCCUCHN_Get ($@)
    <a name="HMCCUCHNget"></a>
    <b>Get</b><br/><br/>
    <ul>
-      <li><b>get &lt;name&gt; config</b><br/>
-		Get configuration parameters of device and channel.
+      <li><b>get &lt;name&gt; config [&lt;filter-expr&gt;]</b><br/>
+		Get configuration parameters of device and channel. If <i>filter-expr</i> is specified,
+		only parameters matching the expression are stored as readings.<br/>
 		Values related to configuration or link parameters are stored as readings beginning
 		with "R-" for MASTER parameter set and "L-" for LINK parameter set. 
 		Prefixes "R-" and "L-" can be modified with attribute 'ccuReadingPrefix'. Whether parameters are
@@ -645,11 +642,13 @@ sub HMCCUCHN_Get ($@)
 		information to your post in the FHEM forum, if you have a question about
 		the integration of a new device. See also command 'get deviceInfo'.
       </li><br/>
-      <li><b>get &lt;name&gt; update</b><br/>
+      <li><b>get &lt;name&gt; update [&lt;filter-expr&gt;]</b><br/>
         Update all readings for all parameters of all parameter sets (MASTER, LINK, VALUES).
+		If <i>filter-expr</i> is specified, only parameters matching the expression are stored as readings.
       </li><br/>
-      <li><b>get &lt;name&gt; values</b><br/>
+      <li><b>get &lt;name&gt; values [&lt;filter-expr&gt;]</b><br/>
       	Update all readings for all parameters of parameter set VALUES (datapoints).
+		If <i>filter-expr</i> is specified, only parameters matching the expression are stored as readings.
       </li><br/>
       <li><b>get &lt;name&gt; weekProgram [&lt;program-number&gt;|<u>all</u>]</b><br/>
       	Display week programs. This command is only available if a device supports week programs.
