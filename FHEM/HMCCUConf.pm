@@ -168,6 +168,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'CLIMATECONTROL_VENT_DRIVE' => {
 		F => 3, S => 'VALVE_STATE', C => '', V => '', P => 2
+	},
+	'WATER_DETECTION_TRANSMITTER' => {
+		F => 3, S => 'ALARMSTATE', C => '', V => '', P => 1
 	}
 );
 
@@ -282,11 +285,11 @@ $HMCCU_CONFIG_VERSION = '5.0';
 %HMCCU_ROLECMDS = (
 	'MOTIONDETECTOR_TRANSCEIVER' => {
 		'detection' => 'V:MOTION_DETECTION_ACTIVE:#detection=inactive,active',
-		'reset' => 'V:RESET_MOTION:1'
+		'reset' => 'V:RESET_MOTION:true'
 	},
 	'PRESENCEDETECTOR_TRANSCEIVER' => {
 		'detection' => 'V:PRESENCE_DETECTION_ACTIVE:#detection=inactive,active',
-		'reset' => 'V:RESET_PRESENCE:1'
+		'reset' => 'V:RESET_PRESENCE:true'
 	},
 	'PASSAGE_DETECTOR_DIRECTION_TRANSMITTER' => {
 		'detection' => 'M:PASSAGE_DETECTION,CHANNEL_OPERATION_MODE:#inactive,active'
@@ -520,6 +523,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'CLIMATECONTROL_VENT_DRIVE' => {
 		'_none_' => ''
+	},
+	'WATER_DETECTION_TRANSMITTER' => {
+		'_none_' => ''
 	}
 );
 
@@ -629,6 +635,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'CLIMATECONTROL_REGULATOR' => {
 		'SETPOINT' => { '4.5' => 'off', '30.5' => 'on' }		
+	},
+	'WATER_DETECTION_TRANSMITTER' => {
+		'ALARMSTATE' => { '0' => 'noAlarm', '1' => 'Alarm', 'false' => 'noAlarm', 'true' => 'alarm' }
 	},
 	'DEFAULT' => {
 		'AES_KEY' => { '0' => 'off', 'false' => 'off', '1' => 'on', 'true' => 'on' },

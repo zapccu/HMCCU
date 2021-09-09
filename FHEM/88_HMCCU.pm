@@ -151,6 +151,7 @@ sub HMCCU_Initialize ($);
 sub HMCCU_Define ($$$);
 sub HMCCU_InitDevice ($);
 sub HMCCU_Undef ($$);
+sub HMCCU_Renane ($$);
 sub HMCCU_DelayedShutdown ($);
 sub HMCCU_Shutdown ($);
 sub HMCCU_Set ($@);
@@ -369,6 +370,7 @@ sub HMCCU_Initialize ($)
 
 	$hash->{DefFn}             = 'HMCCU_Define';
 	$hash->{UndefFn}           = 'HMCCU_Undef';
+	$hash->{RenameFn}          = 'HMCCU_Rename';
 	$hash->{SetFn}             = 'HMCCU_Set';
 	$hash->{GetFn}             = 'HMCCU_Get';
 	$hash->{ReadFn}            = 'HMCCU_Read';
@@ -489,7 +491,7 @@ sub HMCCU_Define ($$$)
 	}
 	
 	if (($hash->{ccustate} ne 'active' || $rc > 0) && !$init_done) {
-		# Schedule update of CCU assets if CCU is not active during FHEM startup
+		# Schedule later update of CCU assets if CCU is not active during FHEM startup
 		$hash->{hmccu}{ccu}{delayed} = 1;
 		HMCCU_Log ($hash, 1, 'Scheduling delayed initialization in '.$hash->{hmccu}{ccu}{delay}.' seconds');
 		InternalTimer (gettimeofday()+$hash->{hmccu}{ccu}{delay}, "HMCCU_InitDevice", $hash);
@@ -500,7 +502,9 @@ sub HMCCU_Define ($$$)
 	HMCCU_UpdateReadings ($hash, { 'state' => 'Initialized', 'rpcstate' => 'inactive' });
 
 	if ($init_done) {
+		# Set default attributes
 		$attr{$name}{stateFormat} = 'rpcstate/state';
+		$attr{$name}{room}        = 'Homematic';
 	}
 	
 	return undef;
@@ -542,7 +546,7 @@ sub HMCCU_InitDevice ($)
 		if ($init_done && $hash->{hmccu}{ccu}{delayed} == 0) {
 			# Force sync with CCU during interactive device definition
 			if ($hash->{hmccu}{ccu}{sync} == 1) {
- 				HMCCU_Log ($hash, 1, 'Reading device config from CCU. This may take a couple of seconds ...');
+ 				HMCCU_LogDisplay ($hash, 1, 'Reading device config from CCU. This may take a couple of seconds ...');
 				my ($cDev, $cPar, $cLnk) = HMCCU_GetDeviceConfig ($hash);
 				HMCCU_Log ($hash, 2, "Read RPC device configuration: devices/channels=$cDev parametersets=$cPar links=$cLnk");
 			}
@@ -1222,21 +1226,53 @@ sub HMCCU_AggregateReadings ($$)
 sub HMCCU_Undef ($$)
 {
 	my ($hash, $arg) = @_;
+	my $name = $hash->{NAME};
 
 	# Shutdown RPC server
 	HMCCU_Shutdown ($hash);
 
-	# Delete reference to IO module in client devices
 	my @keylist = keys %defs;
 	foreach my $d (@keylist) {
 		my $ch = $defs{$d} // next;
-		if (exists ($ch->{TYPE}) && $ch->{TYPE} =~ /^(HMCCUDEV|HMCCUCHN|HMCCURPCPROC)$/ &&
-			exists($ch->{IODev}) && $ch->{IODev} == $hash) {
+		next if (!exists($ch->{TYPE}) || !exists($ch->{IODev}) || $ch->{IODev} != $hash);
+		if ($ch->{TYPE} eq 'HMCCUDEV' || $ch->{TYPE} eq 'HMCCUCHN') {
+			# Delete reference to IO module in client devices
         	delete $defs{$d}{IODev};
+		}
+		elsif ($ch->{TYPE} eq 'HMCCURPCPROC') {
+			# Delete RPC server devices associated with deleted I/O device
+			HMCCU_Log ($hash, 1, "Deleting RPC server device $ch->{NAME}");
+			CommandDelete (undef, $ch->{NAME});
 		}
 	}
 
+	# Delete CCU credentials
+	my ($erruser, $encuser) = getKeyValue ($name.'_username');
+	my ($errpass, $encpass) = getKeyValue ($name.'_password');
+	setKeyValue ($name."_username", undef) if (!defined($erruser) && defined($encuser));
+	setKeyValue ($name."_password", undef) if (!defined($errpass) && defined($encpass));
+
 	return undef;
+}
+
+######################################################################
+# Rename device
+######################################################################
+
+sub HMCCU_Rename ($$)
+{
+	my ($oldName, $newName);
+
+	my ($erruser, $encuser) = getKeyValue ($oldName.'_username');
+	my ($errpass, $encpass) = getKeyValue ($oldName.'_password');
+	if (!defined($erruser) && defined($encuser)) {
+		setKeyValue ($newName."_username", $encuser);
+		setKeyValue ($oldName."_username", undef);
+	}
+	if (!defined($errpass) && defined($encpass)) {
+		setKeyValue ($newName."_password", $encpass);
+		setKeyValue ($oldName."_password", undef);
+	}
 }
 
 ######################################################################
@@ -1300,7 +1336,7 @@ sub HMCCU_Set ($@)
 		"prgActivate prgDeactivate on:noArg off:noArg";
 	$opt = lc($opt);
 	
-	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 1);
+	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 0);
 	my @ifList = keys %$interfaces;
 	if (scalar(@ifList) > 0) {
 		my $ifStr = join(',', @ifList);
@@ -1667,7 +1703,7 @@ sub HMCCU_Get ($@)
 	my $ccuflags = HMCCU_GetFlags ($name);
 	my $ccureadings = AttrVal ($name, "ccureadings", $ccuflags =~ /noReadings/ ? 0 : 1);
 
-	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 1);
+	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 0);
 	my @ifList = keys %$interfaces;
 
 	my $readname;
@@ -2627,7 +2663,7 @@ sub HMCCU_SetRPCState ($@)
 		# Count number of processes in state running, error or inactive
 		# Prepare filter for updating client devices
 		my %stc = ('running' => 0, 'error' => 0, 'inactive' => 0);
-		my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 1);
+		my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 0);
 		my @iflist = keys %$interfaces;
 		my $ifCount = scalar(@iflist);
 		foreach my $i (@iflist) {
@@ -3472,40 +3508,6 @@ sub HMCCU_UpdateDevice ($$)
 
 	 	$clHash->{sender} = join (',', HMCCU_Unique (@sndList)) if (scalar(@sndList) > 0);
 	}
-
-	# if (exists($ioHash->{hmccu}{snd}{$iface}{$da})) {
-	# 	delete $clHash->{sender} if (exists($clHash->{sender}));
-	# 	delete $clHash->{receiver} if (exists($clHash->{receiver}));
-	# 	my @rcvList = ();
-	# 	my @sndList = ();
-		
-	# 	foreach my $c (sort keys %{$ioHash->{hmccu}{snd}{$iface}{$da}}) {
-	# 		next if ($clType eq 'HMCCUCHN' && "$c" ne "$dc");
-	# 		foreach my $r (keys %{$ioHash->{hmccu}{snd}{$iface}{$da}{$c}}) {
-	# 			my ($la, $lc) = HMCCU_SplitChnAddr ($r);
-	# 			next if ($la eq $da);	# Ignore link if receiver = current device
-	# 			my @rcvNames = HMCCU_GetDeviceIdentifier ($ioHash, $r, $iface);
-	# 			my $rcvFlags = HMCCU_FlagsToStr ('peer', 'FLAGS',
-	# 				$ioHash->{hmccu}{snd}{$iface}{$da}{$c}{$r}{FLAGS}, ',');
-	# 			push @rcvList, map { $_.($rcvFlags ne 'OK' ? " [".$rcvFlags."]" : '') } @rcvNames;	
-	# 		}
-	# 	}
-
-	# 	foreach my $c (sort keys %{$ioHash->{hmccu}{rcv}{$iface}{$da}}) {
-	# 		next if ($clType eq 'HMCCUCHN' && "$c" ne "$dc");
-	# 		foreach my $s (keys %{$ioHash->{hmccu}{rcv}{$iface}{$da}{$c}}) {
-	# 			my ($la, $lc) = HMCCU_SplitChnAddr ($s);
-	# 			next if ($la eq $da);	# Ignore link if sender = current device
-	# 			my @sndNames = HMCCU_GetDeviceIdentifier ($ioHash, $s, $iface);
-	# 			my $sndFlags = HMCCU_FlagsToStr ('peer', 'FLAGS',
-	# 				$ioHash->{hmccu}{snd}{$iface}{$da}{$c}{$s}{FLAGS}, ',');
-	# 			push @sndList, map { $_.($sndFlags ne 'OK' ? " [".$sndFlags."]" : '') } @sndNames; 
-	# 		}
-	# 	}
-
-	# 	$clHash->{sender} = join (',', @sndList) if (scalar(@sndList) > 0);
-	# 	$clHash->{receiver} = join (',', @rcvList) if (scalar(@rcvList) > 0);
-	# }
 }
 
 ######################################################################
@@ -3569,8 +3571,7 @@ sub HMCCU_RenameDevice ($$$)
 	return 0 if (!exists($ioHash->{hmccu}{device}{$iface}{$address}));
 	
 	if (exists($ioHash->{hmccu}{device}{$iface}{$address}{_fhem})) {
-		my @devList = grep { $_ ne $oldName } split(',', $ioHash->{hmccu}{device}{$iface}{$address}{_fhem});
-		push @devList, $name;
+		my @devList = map { $_ eq $oldName ? $name : $_ } split(',', $ioHash->{hmccu}{device}{$iface}{$address}{_fhem});
 		$ioHash->{hmccu}{device}{$iface}{$address}{_fhem} = join(',', @devList);
 	}
 	else {
@@ -3709,7 +3710,7 @@ sub HMCCU_GetDeviceConfig ($)
 	my ($cDev, $cPar, $cLnk) = (0, 0, 0);
 	my $c = 0;
 	
-	my $interfaces = HMCCU_GetRPCInterfaceList ($ioHash, 1);
+	my $interfaces = HMCCU_GetRPCInterfaceList ($ioHash, 0);
 	foreach my $iface (keys %$interfaces) {
 		my ($rpcdev, $save) = HMCCU_GetRPCDevice ($ioHash, 1, $iface);
 		if ($rpcdev ne '') {
@@ -4897,7 +4898,7 @@ sub HMCCU_EventsTimedOut ($)
 	
 	# Register callback for each interface
 	my $rc = 1;
-	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 1);
+	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 0);
 	foreach my $ifname (keys %$interfaces) {
 		my ($rpcdev, $save) = HMCCU_GetRPCDevice ($hash, 0, $ifname);
 		if ($rpcdev eq '') {
@@ -5025,7 +5026,7 @@ sub HMCCU_StartExtRPCServer ($)
 	my $c = 0;
 	my $d = 0;
 	my $s = 0;
-	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 1);
+	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 0);
 	my @iflist = keys %$interfaces;
 	foreach my $ifname1 (@iflist) {
 		my ($rpcdev, $save) = HMCCU_GetRPCDevice ($hash, 1, $ifname1);
@@ -5078,7 +5079,7 @@ sub HMCCU_StopExtRPCServer ($;$)
 	HMCCU_SetRPCState ($hash, 'stopping');
 
 	my $rc = 1;
-	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 1);
+	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 0);
 	foreach my $ifname (keys %$interfaces) {
 		my ($rpcdev, $save) = HMCCU_GetRPCDevice ($hash, 0, $ifname);
 		if ($rpcdev eq '') {
@@ -5125,7 +5126,7 @@ sub HMCCU_IsRPCServerRunning ($;$)
 	my $ccuflags = HMCCU_GetFlags ($name);
 
 	@$pids = () if (defined($pids));
-	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 1);
+	my $interfaces = HMCCU_GetRPCInterfaceList ($hash, 0);
 	foreach my $ifname (keys %$interfaces) {
 		my ($rpcdev, $save) = HMCCU_GetRPCDevice ($hash, 0, $ifname);
 		next if ($rpcdev eq '');
@@ -6386,11 +6387,13 @@ sub HMCCU_CreateRPCDevice ($$$$)
 {
 	my ($hash, $ifname, $rpcprot, $rpchost) = @_;
 	
-	my $alias = "CCU RPC $ifname";
+	my $ccuNum = $hash->{CCUNum} // '1';
 	my $rpcdevname = 'd_rpc';
 
 	# Ensure unique device name by appending last 2 digits of CCU IP address
-	$rpcdevname .= HMCCU_GetIdFromIP ($hash->{ccuip}, '') if (exists($hash->{ccuip}));
+	my $uID = HMCCU_GetIdFromIP ($hash->{ccuip}, '');
+	$rpcdevname .= $uID;
+	my $alias = "CCU ".($uID eq '' ? $ccuNum : $uID)." RPC $ifname";
 
 	# Build device name and define command
 	$rpcdevname = makeDeviceName ($rpcdevname.$ifname);
@@ -6402,7 +6405,7 @@ sub HMCCU_CreateRPCDevice ($$$$)
 	HMCCU_Log ($hash, 1, "Creating new RPC device $rpcdevname for interface $ifname");
 	my $ret = CommandDefine (undef, $rpccreate);
 	if (!defined($ret)) {
-		# RPC device created. Set/copy some attributes from HMCCU device
+		# RPC device created. Set/copy some attributes from I/O device
 		my %rpcdevattr = ('room' => 'copy', 'group' => 'copy', 'icon' => 'copy',
 			'stateFormat' => 'rpcstate/state', 'eventMap' => '/rpcserver on:on/rpcserver off:off/',
 			'verbose' => 2, 'alias' => $alias );
@@ -6811,32 +6814,35 @@ sub HMCCU_UpdateRoleCommands ($$;$)
 				}
 			
 				if (defined($par) && $par ne '') {
-					if ($par =~ /^#([^=]+)/) {
-						my $pn = $1;
+					if ($par =~ /^#(.+)$/) {
+						my ($pn, $pv) = split('=', $1);
+
 						# Parameter list
 						my $argList = '';
 						$clHash->{hmccu}{roleCmds}{$cmdType}{$cmd}{subcmd}{$scn}{parname} = $pn;
 						$pt = 1;   # Enum / List of fixed values
 
 						if ($paramDef->{TYPE} eq 'ENUM' && defined($paramDef->{VALUE_LIST})) {
+							# Parameter type ENUM
 							$argList = $paramDef->{VALUE_LIST};
 						}
 						else {
-							my ($pn, $pv) = split('=', $par);
+							# Parameter with list of values
+#							my ($pn, $pv) = split('=', $par);
 							$argList = $pv // '';
 							my %valList;
-							if ($pn eq $HMCCU_STATECONTROL->{$role}{C}) {
+							if ($dpt eq $HMCCU_STATECONTROL->{$role}{C}) {
 								# If parameter is control datapoint, use values/conversions from HMCCU_STATECONTROL
 								foreach my $cv (split(',', $HMCCU_STATECONTROL->{$role}{V})) {
 									my ($vn, $vv) = split(':', $cv);
 									$valList{$vn} = $vv // $vn;
 								}
 							}
-							elsif (exists($HMCCU_CONVERSIONS->{$role}{$pn})) {
+							elsif (exists($HMCCU_CONVERSIONS->{$role}{$dpt})) {
 								# If a list of conversions exists, use values/conversions from HMCCU_CONVERSIONS
 								foreach my $cv (split(',', $argList)) {
-									if (exists($HMCCU_CONVERSIONS->{$role}{$pn}{$cv})) {
-										$valList{$HMCCU_CONVERSIONS->{$role}{$pn}{$cv}} = $cv;
+									if (exists($HMCCU_CONVERSIONS->{$role}{$dpt}{$cv})) {
+										$valList{$HMCCU_CONVERSIONS->{$role}{$dpt}{$cv}} = $cv;
 									}
 									else {
 										$valList{$cv} = $cv;
@@ -10106,9 +10112,19 @@ sub HMCCU_TCPConnect ($$;$)
 sub HMCCU_GetIdFromIP ($$)
 {
 	my ($ip, $default) = @_;
+	return $default if (!defined($ip));
 
-	my @ipseg = split (/\./, $ip);
-	return scalar(@ipseg) == 4 ? sprintf ("%03d%03d", $ipseg[2], $ipseg[3]) : $default;
+	if ($ip =~ /:[0-9]{1,4}$/) {
+		# Looks like an IPv6 address
+		$ip =~ s/://g;
+		my $ip1 = int(hex('0x'.substr($ip,-4))/256) // 0;
+		my $ip2 = hex('0x'.substr($ip,-4))%256 // 0;
+		return $ip1 > 0 || $ip2 > 0 ? sprintf("%03d%03d", $ip1, $ip2) : $default;
+	}
+	else {
+		my @ipseg = split (/\./, $ip);
+		return scalar(@ipseg) == 4 ? sprintf ("%03d%03d", $ipseg[2], $ipseg[3]) : $default;
+	}
 }
 	
 ######################################################################
