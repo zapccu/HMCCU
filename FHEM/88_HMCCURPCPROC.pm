@@ -149,6 +149,7 @@ sub HMCCURPCPROC_Initialize ($);
 sub HMCCURPCPROC_Define ($$);
 sub HMCCURPCPROC_InitDevice ($$);
 sub HMCCURPCPROC_Undef ($$);
+sub HMCCURPCPROC_Rename ($$);
 sub HMCCURPCPROC_DelayedShutdown ($);
 sub HMCCURPCPROC_Shutdown ($);
 sub HMCCURPCPROC_Attr ($@);
@@ -248,6 +249,7 @@ sub HMCCURPCPROC_Initialize ($)
 
 	$hash->{DefFn}             = 'HMCCURPCPROC_Define';
 	$hash->{UndefFn}           = 'HMCCURPCPROC_Undef';
+	$hash->{RenameFn}          = 'HMCCURPCPROC_Rename';
 	$hash->{SetFn}             = 'HMCCURPCPROC_Set';
 	$hash->{GetFn}             = 'HMCCURPCPROC_Get';
 	$hash->{ReadFn}            = 'HMCCURPCPROC_Read';
@@ -459,6 +461,21 @@ sub HMCCURPCPROC_Undef ($$)
 }
 
 ######################################################################
+# Rename device
+######################################################################
+
+sub HMCCURPCPROC_Rename ($$)
+{
+	my ($newName, $oldName) = @_;
+	my $hash = $defs{$newName};
+
+	my $ioHash = $hash->{IODev};
+	my $ifName = $hash->{rpcinterface};
+
+	$ioHash->{hmccu}{interfaces}{$ifName}{device} = $newName;
+}
+
+######################################################################
 # Delayed shutdown FHEM
 ######################################################################
 
@@ -542,7 +559,9 @@ sub HMCCURPCPROC_Attr ($@)
 			$hash->{hmccu}{localaddr} = $hash->{hmccu}{defaultaddr};
 		}
 	}
-	
+
+	HMCCU_LogDisplay ($hash, 2, 'Please restart RPC server to apply attribute changes') if ($init_done);
+
 	return undef;
 }
 
@@ -2414,6 +2433,11 @@ sub HMCCURPCPROC_HexDump ($$)
 {
 	my ($name, $data) = @_;
 	
+	if (!defined($data)) {
+		HMCCU_Log ($name, 4, 'HexDump called without data');
+		return;
+	}
+
 	my $offset = 0;
 
 	foreach my $chunk (unpack "(a16)*", $data) {
