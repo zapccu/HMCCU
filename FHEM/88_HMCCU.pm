@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 212941907';
+my $HMCCU_VERSION = '5.0 212981850';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -5404,17 +5404,19 @@ sub HMCCU_GetDevice ($$)
 		if ($hmdata[0] eq 'D') {
 			next if (scalar (@hmdata) != 6);
 			# 1=Interface 2=Device-Address 3=Device-Name 4=Device-Type 5=Channel-Count
-			my $typeprefix = $hmdata[2] =~ /^CUX/ ? 'CUX-' :
-				$hmdata[1] eq 'HVL' ? 'HVL-' : '';
+			# my $typeprefix = $hmdata[2] =~ /^CUX/ ? 'CUX-' :
+			# 	$hmdata[1] eq 'HVL' ? 'HVL-' : '';
 			$objects{$hmdata[2]}{addtype}   = 'dev';
 			$objects{$hmdata[2]}{channels}  = $hmdata[5];
 			$objects{$hmdata[2]}{flag}      = 'N';
 			$objects{$hmdata[2]}{interface} = $hmdata[1];
 			$objects{$hmdata[2]}{name}      = $hmdata[3];
-			$objects{$hmdata[2]}{type}      = $typeprefix . $hmdata[4];
+			# $objects{$hmdata[2]}{type}      = $typeprefix . $hmdata[4];
+			$objects{$hmdata[2]}{type}      = $hmdata[4];
 			$objects{$hmdata[2]}{direction} = 0;
 			$devname = $hmdata[3];
-			$devtype = $typeprefix . $hmdata[4];
+			# $devtype = $typeprefix . $hmdata[4];
+			$devtype = $hmdata[4];
 		}
 		elsif ($hmdata[0] eq 'C') {
 			next if (scalar (@hmdata) != 4);
@@ -5542,9 +5544,10 @@ sub HMCCU_GetDeviceList ($)
 			$objects{$hmdata[2]}{flag}      = 'N';
 			$objects{$hmdata[2]}{interface} = $hmdata[1];
 			$objects{$hmdata[2]}{name}      = $hmdata[3];
-			$typeprefix = "CUX-" if ($hmdata[2] =~ /^CUX/);
-			$typeprefix = "HVL-" if ($hmdata[1] eq 'HVL');
-			$objects{$hmdata[2]}{type}      = $typeprefix . $hmdata[4];
+			# $typeprefix = "CUX-" if ($hmdata[2] =~ /^CUX/);
+			# $typeprefix = "HVL-" if ($hmdata[1] eq 'HVL');
+			# $objects{$hmdata[2]}{type}      = $typeprefix . $hmdata[4];
+			$objects{$hmdata[2]}{type}      = $hmdata[4];
 			$objects{$hmdata[2]}{direction} = 0;
 			# CCU information (address = BidCoS-RF)
 			if ($hmdata[2] eq 'BidCoS-RF') {
@@ -5728,8 +5731,8 @@ sub HMCCU_GetDatapointList ($;$$)
 	foreach my $dpspec (split /[\n\r]+/,$response) {
 		my ($iface, $chna, $devt, $devc, $dptn, $dptt, $dpto) = split (";", $dpspec);
 		my $dcdp = "$devc.$dptn";
-		$devt = "CUX-".$devt if ($iface eq 'CUxD');
-		$devt = "HVL-".$devt if ($iface eq 'HVL');
+		# $devt = "CUX-".$devt if ($iface eq 'CUxD');
+		# $devt = "HVL-".$devt if ($iface eq 'HVL');
 # 		$hash->{hmccu}{dp}{$devt}{spc}{ontime}   = $dcdp if ($dptn eq 'ON_TIME');
 # 		$hash->{hmccu}{dp}{$devt}{spc}{ramptime} = $dcdp if ($dptn eq 'RAMP_TIME');
 # 		$hash->{hmccu}{dp}{$devt}{spc}{submit}   = $dcdp if ($dptn eq 'SUBMIT');
