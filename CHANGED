@@ -1,4 +1,5 @@
  
+ - bugfix:  88_HMCCU.pm: Fixed some bugs
  - bugfix:  88_HMCCU.pm: Fixed CUxD datapoint bug
  - bugfix:  88_HMCCU.pm: Fixed internal command detection bug
  - bugfix:  88_HMCCU.pm: Fixed some bugs in version 5.0
