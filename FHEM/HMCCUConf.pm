@@ -76,6 +76,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'CLIMATE_TRANSCEIVER' => {
 		F => 3, S => 'ACTUAL_TEMPERATURE', C => '', V => '', P => 1
 	},
+	'CLIMATECONTROL_FLOOR_TRANSCEIVER' => {
+		F => 3, S => 'LEVEL', C => '', V => '', P => 1
+	},
 	'CLIMATECONTROL_REGULATOR' => {
 		F => 3, S => 'LEVEL', C => 'SETPOINT', V => 'on:30.5,off:4.5', P => 2
 	},
@@ -106,11 +109,17 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'HEATING_CLIMATECONTROL_TRANSCEIVER' => {
 		F => 3, S => 'ACTUAL_TEMPERATURE', C => 'SET_POINT_TEMPERATURE', V => 'on:30.5,off:4.5', P => 2
 	},
+	'JALOUSIE' => {
+		F => 3, S => 'LEVEL', C => 'LEVEL', V => 'open:100,close:0', P => 2
+	},
 	'KEY' => {
 		F => 3, S => 'PRESS_SHORT', C => 'PRESS_SHORT', V => 'pressed:true', P => 1
 	},
 	'KEY_TRANSCEIVER' => {
 		F => 3, S => 'PRESS_SHORT', C => '', V => '', P => 1
+	},
+	'KEYMATIC' => {
+		F => 3, S => 'STATE', C => 'STATE', V => 'locked:false,unlocked:true', P => 2
 	},
 	'LUXMETER' => {
 		F => 3, S => 'LUX', C => '', V => '', P => 2
@@ -130,6 +139,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'POWERMETER' => {
 		F => 3, S => 'CURRENT', C => '', V => '', P => 1
 	},
+	'POWERMETER_IEC1' => {
+		F => 3, S => 'ENERGY_COUNTER', C => '', V => '', P => 1
+	},
+	'POWERMETER_IEC2' => {
+		F => 3, S => 'IEC_ENERGY_COUNTER', C => '', V => '', P => 1
+	},
 	'PRESENCEDETECTOR_TRANSCEIVER' => {
 		F => 3, S => 'PRESENCE_DETECTION_STATE', C => 'PRESENCE_DETECTION_ACTIVE', V => 'active:1,inactive:0', P => 2
 	},
@@ -148,9 +163,6 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'SMOKE_DETECTOR' => {
 		F => 3, S => 'BidCos-RF:STATE,SMOKE_DETECTOR_ALARM_STATUS', C => 'HmIP-RF:SMOKE_DETECTOR_COMMAND', V => '', P => 2
 	},
-	'VIRTUAL_KEY' => {
-		F => 3, S => 'PRESS_SHORT', C => 'PRESS_SHORT', V => 'pressed:true', P => 1
-	},
 	'SHUTTER_TRANSMITTER' => {
 		F => 3, S => 'LEVEL', C => '', V => '', P => 1
 	},
@@ -168,6 +180,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'THERMALCONTROL_TRANSMIT' => {
 		F => 3, S => 'ACTUAL_TEMPERATURE', C => 'SET_TEMPERATURE', V => 'on:30.5,off:4.5', P => 2
+	},
+	'VIRTUAL_KEY' => {
+		F => 3, S => 'PRESS_SHORT', C => 'PRESS_SHORT', V => 'pressed:true', P => 1
 	},
 	'WATER_DETECTION_TRANSMITTER' => {
 		F => 3, S => 'ALARMSTATE', C => '', V => '', P => 1
@@ -206,6 +221,8 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'(C#\.)?LEVEL$:+pct;(C#\.)?COLOR$:+color',
 	'DIMMER_WEEK_PROFILE' =>
 		'(C#\.)?WEEK_PROGRAM_CHANNEL_LOCKS$:+progMode',
+	'JALOUSIE' =>
+		'(C#\.)?LEVEL$:+pct;(C#\.)?LEVEL_SLATS$:+pctSlats',
 	'KEY' =>
 		'(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
 	'KEY_TRANSCEIVER' =>
@@ -316,10 +333,26 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'unlock' => 'V:LOCK_TARGET_LEVEL:1',
 		'lock' => 'V:LOCK_TARGET_LEVEL:0'
 	},
+	'JALOUSIE' => {
+		'pct' => 'V:LEVEL:?level',
+		'open' => 'V:LEVEL:100',
+		'close' => 'V:LEVEL:0',
+		'up' => 'V:LEVEL:?delta=+20',
+		'down' => 'V:LEVEL:?delta=-20',
+		'stop' => 'V:STOP:1',
+		'pctSlats' => 'V:LEVEL_SLATS:?level',
+		'openSlats' => 'V:LEVEL_SLATS:100',
+		'closeSlats' => 'V:LEVEL_SLATS:0',
+	},
 	'KEY' => {
 		'on' => 'V:PRESS_SHORT:1',
 		'off' => 'V:PRESS_SHORT:1',
 		'press' => 'V:PRESS_SHORT:1'
+	},
+	'KEYMATIC' => {
+		'open' => 'V:OPEN:true',
+		'lock' => 'V:STATE:false',
+		'unklock' => 'V:STATE:true'
 	},
 	'VIRTUAL_KEY' => {
 		'on' => 'V:PRESS_SHORT:1',
@@ -464,6 +497,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'cmdIcon' => 'open:fts_door_open unlock:secur_open lock:secur_lock',
 		'webCmd' => 'lock:unlock:open'
 	},
+	'JALOUSIE' => {
+		'substexcl' => 'pct',
+		'cmdIcon' => 'open:fts_shutter_up stop:fts_shutter_manual close:fts_shutter_down',
+		'webCmd' => 'pct:open:close:stop',
+		'widgetOverride' => 'pct:slider,0,10,100'
+	},
 	'KEY' => {
 		'event-on-update-reading' => 'PRESS.*',
 		'cmdIcon' => 'press:taster',
@@ -471,6 +510,10 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'KEY_TRANSCEIVER' => {
 		'event-on-update-reading' => 'PRESS.*'
+	},
+	'KEYMATIC' => {
+		'cmdIcon' => 'open:fts_door_right_open lock:secure_locked unlock:secur_open',
+		'webCmd' => 'open:lock:unlock'
 	},
 	'MOTION_DETECTOR' => {
 		'_none_' => ''
@@ -537,6 +580,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'CLIMATECONTROL_VENT_DRIVE' => {
 		'_none_' => ''
 	},
+	'CLIMATECONTROL_FLOOR_TRANSCEIVER' => {
+		'_none_' => ''
+	},
 	'WATER_DETECTION_TRANSMITTER' => {
 		'_none_' => ''
 	}
@@ -576,6 +622,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'KEY_TRANSCEIVER' => {
 		'PRESS_SHORT' => { '1' => 'pressed', 'true' => 'pressed' },
 		'PRESS_LONG' =>  { '1' => 'pressed', 'true' => 'pressed' }
+	},
+	'KEYMATIC' => {
+		'STATE' => { '0' => 'locked', 'false' => 'locked', '1' => 'unlocked', 'true' => 'unlocked' }
 	},
 	'VIRTUAL_KEY' => {
 		'PRESS_SHORT' => { '1' => 'pressed', 'true' => 'pressed' },
@@ -617,6 +666,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'LEVEL' =>     { '0' => 'closed', '100' => 'open', 'close' => '0', 'open' => '100' },
 		'DIRECTION' => { '0' => 'none', '1' => 'up', '2' => 'down' },
 		'WORKING' =>   { '0' => 'no', 'false' => 'no', '1' => 'yes', 'true' => 'yes' }
+	},
+	'JALOUSIE' => {
+		'LEVEL' =>       { '0' => 'closed', '100' => 'open', 'close' => '0', 'open' => '100' },
+		'LEVEL_SLATS' => { '0' => 'closed', '100' => 'open', 'close' => '0', 'open' => '100' },
+		'DIRECTION' =>   { '0' => 'none', '1' => 'up', '2' => 'down' },
+		'WORKING' =>     { '0' => 'no', 'false' => 'no', '1' => 'yes', 'true' => 'yes' }
 	},
 	'SHUTTER_TRANSMITTER' => {
 		'LEVEL' =>     { '0' => 'closed', '100' => 'open', 'close' => '0', 'open' => '100' }
