@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 213261849';
+my $HMCCU_VERSION = '5.0 213281908';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -1069,7 +1069,7 @@ sub HMCCU_Notify ($$)
 			# Global event
 			if ($event eq 'INITIALIZED') {
 				# FHEM initialized. Schedule post initialization tasks
-				my $delay = $hash->{ccustate} eq 'active' && HMCCU_IsDelayedInit ($hash) ?
+				my $delay = $hash->{ccustate} eq 'active' && !HMCCU_IsDelayedInit ($hash) ?
 					$HMCCU_INIT_INTERVAL0 : $hash->{hmccu}{ccu}{delay}+$HMCCU_CCU_RPC_OFFSET;
 				HMCCU_Log ($hash, 0, "Scheduling post FHEM initialization tasks in $delay seconds");
 				InternalTimer (gettimeofday()+$delay, "HMCCU_PostInit", $hash, 0);
@@ -2368,10 +2368,15 @@ sub HMCCU_GetReadingName ($$$$$$$;$)
 	if ((exists($hash->{hmccu}{control}{chn}) && "$c" eq $hash->{hmccu}{control}{chn}) ||
 		(exists($hash->{hmccu}{state}{chn}) && "$c" eq $hash->{hmccu}{state}{chn})) {
 		my $role = HMCCU_GetChannelRole ($hash, $c);
+		HMCCU_Trace ($hash, 2, "role=$role");
 		if ($role ne '' && exists($HMCCU_READINGS->{$role})) {
 			$crn = $HMCCU_READINGS->{$role};
-			$crn =~ s/C#\./$c\./g;
+			$crn =~ s/C#\\/$c\\/g;
+			HMCCU_Trace ($hash, 2, "crn=$crn");
 			push @srl, $crn;
+		}
+		else {
+			HMCCU_Trace ($hash, 2, "No rule for role $role");
 		}
 	}
 	my $sr = join (';', @srl);
@@ -2438,6 +2443,7 @@ sub HMCCU_GetReadingName ($$$$$$$;$)
 		my @rnewList = split (',', $rnew);
 		next if (scalar (@rnewList) < 1);
 		if ($rnlist[0] =~ /$rold/) {
+			HMCCU_Trace ($hash, 2, "Match $rnlist[0] : $rold");
 			foreach my $rnew (@rnewList) {
 				if ($rnew =~ /^\+(.+)$/) {
 					my $radd = $1;
@@ -2449,6 +2455,9 @@ sub HMCCU_GetReadingName ($$$$$$$;$)
 					last;
 				}
 			}
+		}
+		else {
+			HMCCU_Trace ($hash, 2, "No match $rnlist[0] : $rold");
 		}
 	}
 	
@@ -3416,6 +3425,7 @@ sub HMCCU_CreateDevice ($@)
 	$defOpts //= '';
 	my $cmd = "$devName $defMod $defAdd";
 	$cmd .= " $defOpts" if ($defOpts ne '');
+	$cmd .= " iodev=$hash->{NAME}" if ($defAdd =~ /^INT[0-9]+$/);
 	my $ret = CommandDefine (undef, $cmd);
 	if ($ret) {
 		HMCCU_Log ($hash, 2, "Define command failed $cmd. $ret");
@@ -4699,7 +4709,7 @@ sub HMCCU_UpdateParamsetReadings ($$$;$)
 					my @rnList = HMCCU_GetReadingName ($clHash, $clInt, $a, $c, $p, '', $clRF, $ps);
 					my $hide = HMCCU_FilterReading ($clHash, $chnAddr, $p, $ps) ? 0 : 1;
 					foreach my $rn (@rnList) {
-						HMCCU_Trace ($clHash, 2, "rn=$rn, hide=$hide, fv=$fv, cv=$cv");
+						HMCCU_Trace ($clHash, 2, "p=$p rn=$rn, hide=$hide, fv=$fv, cv=$cv");
 						HMCCU_BulkUpdate ($clHash, $rn, $fv, $cv, $hide);
 					}
 				}

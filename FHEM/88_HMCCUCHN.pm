@@ -30,7 +30,7 @@ sub HMCCUCHN_Set ($@);
 sub HMCCUCHN_Get ($@);
 sub HMCCUCHN_Attr ($@);
 
-my $HMCCUCHN_VERSION = '5.0 213261849';
+my $HMCCUCHN_VERSION = '5.0 213281908';
 
 ######################################################################
 # Initialize module
@@ -524,10 +524,10 @@ sub HMCCUCHN_Get ($@)
          Readings 'state' and 'control' are not deleted. With option 'reset' all readings
          and all internally stored device parameter values are deleted.
       </li><br/>
-	  <li>set &lt;name&gt; close</b><br/>
+	  <li><b>set &lt;name&gt; close</b><br/>
 		[blind] Set level of a shutter or blind to 0%.
 	  </li><br/>
-	  <li>set &lt;name&gt; color &lt;color-name&gt;</b><br/>
+	  <li><b>set &lt;name&gt; color &lt;color-name&gt;</b><br/>
 	    [light] Set color of LED light.
       </li><br/>
 	  <li><b>set &lt;name&gt; config [device|&lt;receiver&gt;] &lt;parameter&gt;=&lt;value&gt;[:&lt;type&gt;] [...]</b><br/>
@@ -589,7 +589,7 @@ sub HMCCUCHN_Get ($@)
          format HH:MM or HH:MM:SS. This command is only available if channel contains a datapoint
          ON_TIME. 
       </li><br/>
-	  <li>set &lt;name&gt; open</b><br/>
+	  <li><b>set &lt;name&gt; open</b><br/>
 		[blind] Set level of a shutter or blind to 100%.
 	  </li><br/>
       <li><b>set &lt;name&gt; pct &lt;value&gt; [&lt;ontime&gt; [&lt;ramptime&gt;]]</b><br/>

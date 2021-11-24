@@ -204,33 +204,33 @@ $HMCCU_CONFIG_VERSION = '5.0';
 
 %HMCCU_READINGS = (
 	'BLIND' =>
-		'(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct',
 	'BLIND_TRANSMITTER' =>
-		'(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct',
 	'BLIND_VIRTUAL_RECEIVER' =>
-		'(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct',
 	'SHUTTER_TRANSMITTER' =>
-		'(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct',
 	'SHUTTER_VIRTUAL_RECEIVER' =>
-		'(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct',
 	'DIMMER' =>
-		'(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct',
 	'DIMMER_TRANSMITTER' =>
-		'(C#\.)?LEVEL$:+pct;(C#\.)?COLOR$:+color',
+		'^(C#\.)?LEVEL$:+pct;(C#\.)?COLOR$:+color',
 	'DIMMER_VIRTUAL_RECEIVER' =>
-		'(C#\.)?LEVEL$:+pct;(C#\.)?COLOR$:+color',
+		'^(C#\.)?LEVEL$:+pct;(C#\.)?COLOR$:+color',
 	'DIMMER_WEEK_PROFILE' =>
-		'(C#\.)?WEEK_PROGRAM_CHANNEL_LOCKS$:+progMode',
+		'^(C#\.)?WEEK_PROGRAM_CHANNEL_LOCKS$:+progMode',
 	'JALOUSIE' =>
-		'(C#\.)?LEVEL$:+pct;(C#\.)?LEVEL_SLATS$:+pctSlats',
+		'^(C#\.)?LEVEL$:+pct;(C#\.)?LEVEL_SLATS$:+pctSlats',
 	'KEY' =>
-		'(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
+		'^(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
 	'KEY_TRANSCEIVER' =>
-		'(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
+		'^(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
 	'VIRTUAL_KEY' =>
-		'(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
+		'^(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
 	'ACCELERATION_TRANSCEIVER' =>
-		'(C#\.)?MOTION:motion',
+		'^(C#\.)?MOTION:motion',
 	'MOTION_DETECTOR' =>
 		'^(C#\.)?BRIGHTNESS$:brightness;(C#\.)?MOTION:motion',
 	'MOTIONDETECTOR_TRANSCEIVER' =>
@@ -238,35 +238,35 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'PRESENCEDETECTOR_TRANSCEIVER' =>
 		'^(C#\.)?ILLUMINATION$:brightness;(C#\.)?PRESENCE_DETECTION_STATE:presence;(C#\.)?PRESENCE_DETECTION_ACTIVE:detection',
 	'WEATHER' =>
-		'(C#\.)?TEMPERATURE$:+measured-temp;'.
-		'(C#\.)?HUMIDITY$:+humidity',
+		'^(C#\.)?TEMPERATURE$:+measured-temp;'.
+		'^(C#\.)?HUMIDITY$:+humidity',
 	'WEATHER_TRANSMIT' =>
-		'(C#\.)?TEMPERATURE$:+measured-temp;'.
-		'(C#\.)?HUMIDITY$:+humidity',
+		'^(C#\.)?TEMPERATURE$:+measured-temp;'.
+		'^(C#\.)?HUMIDITY$:+humidity',
 	'CLIMATE_TRANSCEIVER' =>
-		'(C#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
-		'(C#\.)?ACTUAL_HUMIDITY$:+humidity',
+		'^(C#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
+		'^(C#\.)?ACTUAL_HUMIDITY$:+humidity',
 	'THERMALCONTROL_TRANSMIT' =>
-		'(C#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
-		'(C#\.)?ACTUAL_HUMIDITY$:+humidity;'.
-		'(C#\.)?SET_TEMPERATURE$:+desired-temp',
+		'^(C#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
+		'^(C#\.)?ACTUAL_HUMIDITY$:+humidity;'.
+		'^(C#\.)?SET_TEMPERATURE$:+desired-temp',
 	'CLIMATECONTROL_RT_TRANSCEIVER' =>
-		'(C#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
-		'(C#\.)?ACTUAL_HUMIDITY$:+humidity;'.
-		'(C#\.)?SET_TEMPERATURE$:+desired-temp',
+		'^(C#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
+		'^(C#\.)?ACTUAL_HUMIDITY$:+humidity;'.
+		'^(C#\.)?SET_TEMPERATURE$:+desired-temp',
 	'HEATING_CLIMATECONTROL_TRANSCEIVER' =>
-		'(C#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
-		'(C#\.)?HUMIDITY$:+humidity;'.
-		'(C#\.)?ACTUAL_HUMIDITY$:+humidity;'.
-		'(C#\.)?SET_POINT_TEMPERATURE$:+desired-temp',
+		'^(C#\.)?ACTUAL_TEMPERATURE$:+measured-temp;'.
+		'^(C#\.)?HUMIDITY$:+humidity;'.
+		'^(C#\.)?ACTUAL_HUMIDITY$:+humidity;'.
+		'^(C#\.)?SET_POINT_TEMPERATURE$:+desired-temp',
 	'CLIMATECONTROL_REGULATOR' =>
-		'(C#\.)?SETPOINT$:+desired-temp',
+		'^(C#\.)?SETPOINT$:+desired-temp',
 	'DEFAULT' =>
-		'([0-9]{1,2}\.)?LEVEL$:+pct;'.
-		'([0-9]{1,2}\.)?SET_TEMPERATURE$:+desired-temp;'.
+		'^([0-9]{1,2}\.)?LEVEL$:+pct;'.
+		'^([0-9]{1,2}\.)?SET_TEMPERATURE$:+desired-temp;'.
 		'^([0-9]{1,2}\.)?(ACTUAL_TEMPERATURE|TEMPERATURE)$:+measured-temp;'.
-		'([0-9]{1,2}\.)?SET_POINT_TEMPERATURE$:+desired-temp;'.
-		'([0-9]{1,2}\.)?ACTUAL_HUMIDITY$:+humidity'
+		'^([0-9]{1,2}\.)?SET_POINT_TEMPERATURE$:+desired-temp;'.
+		'^([0-9]{1,2}\.)?ACTUAL_HUMIDITY$:+humidity'
 );
 
 ######################################################################
