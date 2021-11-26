@@ -31,7 +31,7 @@ sub HMCCUDEV_Set ($@);
 sub HMCCUDEV_Get ($@);
 sub HMCCUDEV_Attr ($@);
 
-my $HMCCUDEV_VERSION = '5.0 213281908';
+my $HMCCUDEV_VERSION = '5.0 213301607';
 
 ######################################################################
 # Initialize module
@@ -259,7 +259,7 @@ sub HMCCUDEV_InitDevice ($$)
 		}
 
 		# Update readings
-		HMCCU_GetUpdate ($devHash, $da, 'Value');
+		HMCCU_GetUpdate ($devHash, $da);
 	}
 
 	# Parse group options

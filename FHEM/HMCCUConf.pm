@@ -61,6 +61,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
 		F => 3, S => 'ACOUSTIC_ALARM_ACTIVE', C => 'ACOUSTIC_ALARM_SELECTION', V => '', P => 2
 	},
+	'ARMING' => {
+		F => 3, S => 'ARMSTATE', C => 'ARMSTATE', V => 'disarmed:0,extSensArmed:1,allSensArmed:2,alarmBlocked:3', P => 2
+	},
 	'BLIND' => {
 		F => 3, S => 'LEVEL', C => 'LEVEL', V => 'open:100,close:0', P => 2
 	},
@@ -172,6 +175,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'SWITCH' => {
 		F => 3, S => 'STATE', C => 'STATE', V => 'on:true,off:false', P => 2
 	},
+	'SWITCH_PANIC' => {
+		F => 3, S => 'STATE', C => 'STATE', V => 'on:true,off:false', P => 2
+	},
+	'SWITCH_SENSOR' => {
+		F => 3, S => 'STATE', C => 'STATE', V => 'on:true,off:false', P => 2
+	},
 	'SWITCH_TRANSMITTER' => {
 		F => 3, S => 'STATE', C => '', V => '', P => 1
 	},
@@ -203,10 +212,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 ######################################################################
 
 %HMCCU_READINGS = (
+	'ARMING' =>
+		'^(C#\.)?ARMSTATE$:+armState',
 	'BLIND' =>
 		'^(C#\.)?LEVEL$:+pct',
 	'BLIND_TRANSMITTER' =>
-		'^(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct;^(C#\.)?LEVEL_2$:+pctSlats',
 	'BLIND_VIRTUAL_RECEIVER' =>
 		'^(C#\.)?LEVEL$:+pct',
 	'SHUTTER_TRANSMITTER' =>
@@ -328,6 +339,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'acousticAlarm' => 'V:ACOUSTIC_ALARM_SELECTION:#alarmMode V:OPTICAL_ALARM_SELECTION:0 V:DURATION_UNIT:0 V:DURATION_VALUE:10',
 		'duration' => 'I:DURATION_VALUE:?duration I:DURATION_UNIT:#unit'
 	},
+	'ARMING' => {
+		'armState' => 'V:ARMSTATE:#armState'
+	},
 	'DOOR_LOCK_STATE_TRANSMITTER' => {
 		'open' => 'V:LOCK_TARGET_LEVEL:2',
 		'unlock' => 'V:LOCK_TARGET_LEVEL:1',
@@ -373,7 +387,10 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'close' => 'V:LEVEL:0',
 		'up' => 'V:LEVEL:?delta=+20',
 		'down' => 'V:LEVEL:?delta=-20',
-		'stop' => 'V:STOP:1'
+		'stop' => 'V:STOP:1',
+		'pctSlats' => 'V:LEVEL_2:?level V:LEVEL:101',
+		'openSlats' => 'V:LEVEL_2:100 V:LEVEL:101',
+		'closeSlats' => 'V:LEVEL_2:0 V:LEVEL:101',
 	},
 	'SHUTTER_VIRTUAL_RECEIVER' => {
 		'pct' => 'V:LEVEL:?level',
@@ -384,6 +401,18 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'stop' => 'V:STOP:1'
 	},
 	'SWITCH' => {
+		'on' => 'V:STATE:1',
+		'off' => 'V:STATE:0',
+		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
+		'on-till' => 'V:ON_TIME:?time V:STATE:1'
+	},
+	'SWITCH_PANIC' => {
+		'on' => 'V:STATE:1',
+		'off' => 'V:STATE:0',
+		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
+		'on-till' => 'V:ON_TIME:?time V:STATE:1'
+	},
+	'SWITCH_SENSOR' => {
 		'on' => 'V:STATE:1',
 		'off' => 'V:STATE:0',
 		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
@@ -550,6 +579,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'SWITCH' => {
 		'cmdIcon' => 'on:general_an off:general_aus'
 	},
+	'SWITCH_PANIC' => {
+		'cmdIcon' => 'on:general_an off:general_aus'
+	},
+	'SWITCH_SENSOR' => {
+		'cmdIcon' => 'on:general_an off:general_aus'
+	},
 	'SWITCH_VIRTUAL_RECEIVER' => {
 		'cmdIcon' => 'on:general_an off:general_aus'
 	},
@@ -597,6 +632,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 ######################################################################
 
 %HMCCU_CONVERSIONS = (
+	'ARMING' => {
+		'ARMSTATE' => { '0' => 'disarmed', '1' => 'extSensArmed', '2' => 'allSensArmed', '3' => 'alarmBlocked' }
+	},
 	'ACCELERATION_TRANSCEIVER' => {
 		'MOTION' => { '0' => 'noMotion', 'false' => 'noMotion', '1' => 'motion', 'true' => 'motion' }
 	},
@@ -646,6 +684,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'STATE' => { '0' => 'ok', '1' => 'alarm', 'false' => 'ok', 'true' => 'alarm' }
 	},
 	'SWITCH' => {
+		'STATE' => { '0' => 'off', 'false' => 'off', '1' => 'on', 'true' => 'on', 'off' => '0', 'on' => '1' },
+	},
+	'SWITCH_PANIC' => {
+		'STATE' => { '0' => 'off', 'false' => 'off', '1' => 'on', 'true' => 'on', 'off' => '0', 'on' => '1' },
+	},
+	'SWITCH_SENSOR' => {
 		'STATE' => { '0' => 'off', 'false' => 'off', '1' => 'on', 'true' => 'on', 'off' => '0', 'on' => '1' },
 	},
 	'SWITCH_TRANSMITTER' => {

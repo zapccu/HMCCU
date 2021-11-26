@@ -30,7 +30,7 @@ sub HMCCUCHN_Set ($@);
 sub HMCCUCHN_Get ($@);
 sub HMCCUCHN_Attr ($@);
 
-my $HMCCUCHN_VERSION = '5.0 213281908';
+my $HMCCUCHN_VERSION = '5.0 213301607';
 
 ######################################################################
 # Initialize module
@@ -212,7 +212,7 @@ sub HMCCUCHN_InitDevice ($$)
 			$rc = -2;
 		}
 
-		HMCCU_GetUpdate ($devHash, $da, 'Value');
+		HMCCU_GetUpdate ($devHash, $da);
 	}
 
 	return $rc;
@@ -519,6 +519,9 @@ sub HMCCUCHN_Get ($@)
    <a name="HMCCUCHNset"></a>
    <b>Set</b><br/><br/>
    <ul>
+      <li><b>set &lt;name&gt; armState {disarmed|extSensArmed|allSensArmed|alarmBlocked}</b><br/>
+	     [alarm siren] Set arm state.
+	  </li><br/>
       <li><b>set &lt;name&gt; clear [&lt;reading-exp&gt;|reset]</b><br/>
          Delete readings matching specified reading name expression. Default expression is '.*'.
          Readings 'state' and 'control' are not deleted. With option 'reset' all readings
