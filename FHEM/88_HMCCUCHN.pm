@@ -30,7 +30,7 @@ sub HMCCUCHN_Set ($@);
 sub HMCCUCHN_Get ($@);
 sub HMCCUCHN_Attr ($@);
 
-my $HMCCUCHN_VERSION = '5.0 213301607';
+my $HMCCUCHN_VERSION = '5.0 213381928';
 
 ######################################################################
 # Initialize module
@@ -51,7 +51,7 @@ sub HMCCUCHN_Initialize ($)
 	$hash->{parseParams} = 1;
 
 	$hash->{AttrList} = 'IODev ccucalculate '.
-		'ccuflags:multiple-strict,ackState,logCommand,noReadings,trace,showMasterReadings,showLinkReadings,showDeviceReadings,showServiceReadings '.
+		'ccuflags:multiple-strict,noBoundsChecking,ackState,logCommand,noReadings,trace,showMasterReadings,showLinkReadings,showDeviceReadings,showServiceReadings '.
 		'ccureadingfilter:textField-long statedatapoint controldatapoint '.
 		'ccureadingformat:name,namelc,address,addresslc '.
 		'ccureadingname:textField-long ccuSetOnChange ccuReadingPrefix '.
@@ -519,7 +519,7 @@ sub HMCCUCHN_Get ($@)
    <a name="HMCCUCHNset"></a>
    <b>Set</b><br/><br/>
    <ul>
-      <li><b>set &lt;name&gt; armState {disarmed|extSensArmed|allSensArmed|alarmBlocked}</b><br/>
+      <li><b>set &lt;name&gt; armState {DISARMED|EXTSENS_ARMED|ALLSENS_ARMED|ALARM_BLOCKED}</b><br/>
 	     [alarm siren] Set arm state.
 	  </li><br/>
       <li><b>set &lt;name&gt; clear [&lt;reading-exp&gt;|reset]</b><br/>
@@ -580,6 +580,16 @@ sub HMCCUCHN_Get ($@)
       	[dimmer, blind] Decrement value of datapoint LEVEL. This command is only available
       	if channel contains a datapoint LEVEL. Default for <i>value</i> is 20.
       </li><br/>
+	  <li><b>set &lt;name&gt; off</b><br/>
+	  	Turn device off.
+	  </li><br/>
+	  <li><b>set &lt;name&gt; old</b><br/>
+	    [dimmer, blind] Set level to previous value. The command is only available if channel
+		contains a datapoint LEVEL with a maximum value of 1.01.
+	  </li><br/>
+	  <li><b>set &lt;name&gt; on</b><br/>
+	  	Turn device on.
+	  </li><br/>
       <li><b>set &lt;name&gt; on-for-timer &lt;ontime&gt;</b><br/>
          [switch] Switch device on for specified number of seconds. This command is only available if
          channel contains a datapoint ON_TIME. Parameter <i>ontime</i> can be specified
@@ -731,10 +741,11 @@ sub HMCCUCHN_Get ($@)
       	<code>dewpoint:taupunkt:1.TEMPERATURE,1.HUMIDITY</code>
       </li><br/>
       <a name="ccuflags"></a>
-      <li><b>ccuflags {ackState, logCommand, noReadings, showDeviceReadings, showLinkReadings, showConfigReadings, trace}</b><br/>
+      <li><b>ccuflags {ackState, logCommand, noBoundsChecking, noReadings, showDeviceReadings, showLinkReadings, showConfigReadings, trace}</b><br/>
       	Control behaviour of device:<br/>
       	ackState: Acknowledge command execution by setting STATE to error or success.<br/>
       	logCommand: Write get and set commands to FHEM log with verbose level 3.<br/>
+		noBoundsChecking: Datapoint values are not checked for min/max boundaries<br/>
       	noReadings: Do not update readings<br/>
       	showDeviceReadings: Show readings of device and channel 0.<br/>
       	showLinkReadings: Show link readings.<br/>

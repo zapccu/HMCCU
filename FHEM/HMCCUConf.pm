@@ -62,7 +62,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		F => 3, S => 'ACOUSTIC_ALARM_ACTIVE', C => 'ACOUSTIC_ALARM_SELECTION', V => '', P => 2
 	},
 	'ARMING' => {
-		F => 3, S => 'ARMSTATE', C => 'ARMSTATE', V => 'disarmed:0,extSensArmed:1,allSensArmed:2,alarmBlocked:3', P => 2
+		F => 3, S => 'ARMSTATE', C => 'ARMSTATE', V => '#', P => 2
 	},
 	'BLIND' => {
 		F => 3, S => 'LEVEL', C => 'LEVEL', V => 'open:100,close:0', P => 2
@@ -201,6 +201,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'WEATHER_TRANSMIT' => {
 		F => 3, S => 'ACTUAL_TEMPERATURE', C => '', V => '', P => 1
+	},
+	'WINMATIC' => {
+		F => 3, S => 'LEVEL', C => 'LEVEL', V => 'open:100,close:0', P => 2
 	}
 );
 
@@ -224,6 +227,10 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'^(C#\.)?LEVEL$:+pct',
 	'SHUTTER_VIRTUAL_RECEIVER' =>
 		'^(C#\.)?LEVEL$:+pct',
+	'SWITCH_PANIC' =>
+		'^(C#\.)?STATE$:+panic',
+	'SWITCH_SENSOR' =>
+		'^(C#\.)?STATE$:+sensor',
 	'DIMMER' =>
 		'^(C#\.)?LEVEL$:+pct',
 	'DIMMER_TRANSMITTER' =>
@@ -320,20 +327,6 @@ $HMCCU_CONFIG_VERSION = '5.0';
 ######################################################################
 
 %HMCCU_ROLECMDS = (
-	'MOTIONDETECTOR_TRANSCEIVER' => {
-		'detection' => 'V:MOTION_DETECTION_ACTIVE:#detection=inactive,active',
-		'reset' => 'V:RESET_MOTION:true'
-	},
-	'PRESENCEDETECTOR_TRANSCEIVER' => {
-		'detection' => 'V:PRESENCE_DETECTION_ACTIVE:#detection=inactive,active',
-		'reset' => 'V:RESET_PRESENCE:true'
-	},
-	'PASSAGE_DETECTOR_DIRECTION_TRANSMITTER' => {
-		'detection' => 'M:PASSAGE_DETECTION,CHANNEL_OPERATION_MODE:#inactive,active'
-	},
-	'SMOKE_DETECTOR' => {
-		'command' => 'V:SMOKE_DETECTOR_COMMAND:#command'
-	},
 	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
 		'opticalAlarm' => 'V:OPTICAL_ALARM_SELECTION:#alarmMode V:ACOUSTIC_ALARM_SELECTION:0 V:DURATION_UNIT:*unit=0 V:DURATION_VALUE:*duration=10',
 		'acousticAlarm' => 'V:ACOUSTIC_ALARM_SELECTION:#alarmMode V:OPTICAL_ALARM_SELECTION:0 V:DURATION_UNIT:0 V:DURATION_VALUE:10',
@@ -342,10 +335,78 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'ARMING' => {
 		'armState' => 'V:ARMSTATE:#armState'
 	},
+	'BLIND' => {
+		'pct' => 'V:LEVEL:?level',
+		'open' => 'V:LEVEL:100',
+		'close' => 'V:LEVEL:0',
+		'up' => 'V:LEVEL:?delta=+20',
+		'down' => 'V:LEVEL:?delta=-20',
+		'stop' => 'V:STOP:1'
+	},
+	'BLIND_VIRTUAL_RECEIVER' => {
+		'pct' => 'V:LEVEL:?level',
+		'open' => 'V:LEVEL:100',
+		'close' => 'V:LEVEL:0',
+		'old' => 'V:LEVEL:100.5',
+		'up' => 'V:LEVEL:?delta=+20',
+		'down' => 'V:LEVEL:?delta=-20',
+		'stop' => 'V:STOP:1',
+		'pctSlats' => 'V:LEVEL_2:?level V:LEVEL:101',
+		'openSlats' => 'V:LEVEL_2:100 V:LEVEL:101',
+		'closeSlats' => 'V:LEVEL_2:0 V:LEVEL:101',
+	},
+	'CLIMATECONTROL_REGULATOR' => {
+		'desired-temp' => 'V:SETPOINT:?temperature',
+		'on' => 'V:SETPOINT:30.5',
+		'off' => 'V:SETPOINT:4.5'		
+	},
+	'CLIMATECONTROL_RT_TRANSCEIVER' => {
+		'desired-temp' => 'V:SET_TEMPERATURE:?temperature',
+		'manu' => 'V:MANU_MODE:?temperature=20',
+		'on' => 'V:MANU_MODE:30.5',
+		'off' => 'V:MANU_MODE:4.5',
+		'auto' => 'V:AUTO_MODE:1',
+		'boost' => 'V:BOOST_MODE:1',
+		'week-program:VirtualDevices' => 'D:WEEK_PROGRAM_POINTER:#program',
+		'get week-program:VirtualDevices' => 'D:WEEK_PROGRAM_POINTER:#program:HMCCU_DisplayWeekProgram'
+	},
+	'DIMMER' => {
+		'pct' => '3:V:LEVEL:?level 1:V:ON_TIME:?time=0.0 2:V:RAMP_TIME:?ramp=0.5',
+		'on' => 'V:LEVEL:100',
+		'off' => 'V:LEVEL:0',
+		'on-for-timer' => 'V:ON_TIME:?duration V:LEVEL:100',
+		'on-till' => 'V:ON_TIME:?time V:LEVEL:100',
+		'up' => 'V:LEVEL:?delta=+10',
+		'down' => 'V:LEVEL:?delta=-10',
+		'stop' => 'V:RAMP_STOP:1'
+	},
+	'DIMMER_VIRTUAL_RECEIVER' => {
+		'pct' => '5:V:LEVEL:?level 1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?time=0.0 3:V:RAMP_TIME_UNIT:0 4:V:RAMP_TIME,RAMP_TIME_VALUE:?ramp=0.5',
+		'on' => 'V:LEVEL:100',
+		'off' => 'V:LEVEL:0',
+		'old' => 'V:LEVEL:100.5',
+		'on-for-timer' => '1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?duration 3:V:LEVEL:100',
+		'on-till' => '1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?time 3:V:LEVEL:100',
+		'up' => 'V:LEVEL:?delta=+10',
+		'down' => 'V:LEVEL:?delta=-10',
+		'color' => 'V:COLOR:#color'
+	},
+	'DIMMER_WEEK_PROFILE' => {
+		'progMode' => 'V:WEEK_PROGRAM_TARGET_CHANNEL_LOCK:#progMode'
+	},
 	'DOOR_LOCK_STATE_TRANSMITTER' => {
 		'open' => 'V:LOCK_TARGET_LEVEL:2',
 		'unlock' => 'V:LOCK_TARGET_LEVEL:1',
 		'lock' => 'V:LOCK_TARGET_LEVEL:0'
+	},
+	'HEATING_CLIMATECONTROL_TRANSCEIVER' => {
+		'desired-temp' => 'V:SET_POINT_TEMPERATURE:?temperature',
+		'auto' => 'V:CONTROL_MODE:0',
+		'manu' => 'V:CONTROL_MODE:1',
+		'holiday' => 'V:CONTROL_MODE:2',
+		'boost' => 'V:BOOST_MODE:1',
+		'on' => 'V:CONTROL_MODE:1 V:SET_POINT_TEMPERATURE:30.5',
+		'off' => 'V:CONTROL_MODE:1 V:SET_POINT_TEMPERATURE:4.5'
 	},
 	'JALOUSIE' => {
 		'pct' => 'V:LEVEL:?level',
@@ -365,40 +426,31 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'KEYMATIC' => {
 		'open' => 'V:OPEN:true',
-		'lock' => 'V:STATE:false',
-		'unklock' => 'V:STATE:true'
+		'lock' => 'V:STATE:0',
+		'unlock' => 'V:STATE:1'
 	},
-	'VIRTUAL_KEY' => {
-		'on' => 'V:PRESS_SHORT:1',
-		'off' => 'V:PRESS_SHORT:1',
-		'press' => 'V:PRESS_SHORT:1'
+	'MOTIONDETECTOR_TRANSCEIVER' => {
+		'detection' => 'V:MOTION_DETECTION_ACTIVE:#detection=inactive,active',
+		'reset' => 'V:RESET_MOTION:true'
 	},
-	'BLIND' => {
-		'pct' => 'V:LEVEL:?level',
-		'open' => 'V:LEVEL:100',
-		'close' => 'V:LEVEL:0',
-		'up' => 'V:LEVEL:?delta=+20',
-		'down' => 'V:LEVEL:?delta=-20',
-		'stop' => 'V:STOP:1'
+	'PASSAGE_DETECTOR_DIRECTION_TRANSMITTER' => {
+		'detection' => 'M:PASSAGE_DETECTION,CHANNEL_OPERATION_MODE:#inactive,active'
 	},
-	'BLIND_VIRTUAL_RECEIVER' => {
-		'pct' => 'V:LEVEL:?level',
-		'open' => 'V:LEVEL:100',
-		'close' => 'V:LEVEL:0',
-		'up' => 'V:LEVEL:?delta=+20',
-		'down' => 'V:LEVEL:?delta=-20',
-		'stop' => 'V:STOP:1',
-		'pctSlats' => 'V:LEVEL_2:?level V:LEVEL:101',
-		'openSlats' => 'V:LEVEL_2:100 V:LEVEL:101',
-		'closeSlats' => 'V:LEVEL_2:0 V:LEVEL:101',
+	'PRESENCEDETECTOR_TRANSCEIVER' => {
+		'detection' => 'V:PRESENCE_DETECTION_ACTIVE:#detection=inactive,active',
+		'reset' => 'V:RESET_PRESENCE:true'
 	},
 	'SHUTTER_VIRTUAL_RECEIVER' => {
 		'pct' => 'V:LEVEL:?level',
 		'open' => 'V:LEVEL:100',
+		'old' => 'V:LEVEL:100.5',
 		'close' => 'V:LEVEL:0',
 		'up' => 'V:LEVEL:?delta=+20',
 		'down' => 'V:LEVEL:?delta=-20',
 		'stop' => 'V:STOP:1'
+	},
+	'SMOKE_DETECTOR' => {
+		'command' => 'V:SMOKE_DETECTOR_COMMAND:#command'
 	},
 	'SWITCH' => {
 		'on' => 'V:STATE:1',
@@ -407,45 +459,20 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'on-till' => 'V:ON_TIME:?time V:STATE:1'
 	},
 	'SWITCH_PANIC' => {
-		'on' => 'V:STATE:1',
-		'off' => 'V:STATE:0',
-		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
-		'on-till' => 'V:ON_TIME:?time V:STATE:1'
+		'panic' => 'V:STATE:#panic=on,off',
+		'panic-on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
+		'panic-on-till' => 'V:ON_TIME:?time V:STATE:1'
 	},
 	'SWITCH_SENSOR' => {
-		'on' => 'V:STATE:1',
-		'off' => 'V:STATE:0',
-		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
-		'on-till' => 'V:ON_TIME:?time V:STATE:1'
+		'sensor' => 'V:STATE:#sensor=on,off',
+		'sensor-on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
+		'sensor-on-till' => 'V:ON_TIME:?time V:STATE:1'
 	},
 	'SWITCH_VIRTUAL_RECEIVER' => {
 		'on' => 'V:STATE:1',
 		'off' => 'V:STATE:0',
 		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
 		'on-till' => 'V:ON_TIME:?time V:STATE:1'
-	},
-	'DIMMER' => {
-		'pct' => '3:V:LEVEL:?level 1:V:ON_TIME:?time=0.0 2:V:RAMP_TIME:?ramp=0.5',
-		'on' => 'V:LEVEL:100',
-		'off' => 'V:LEVEL:0',
-		'on-for-timer' => 'V:ON_TIME:?duration V:LEVEL:100',
-		'on-till' => 'V:ON_TIME:?time V:LEVEL:100',
-		'up' => 'V:LEVEL:?delta=+10',
-		'down' => 'V:LEVEL:?delta=-10',
-		'stop' => 'V:RAMP_STOP:1'
-	},
-	'DIMMER_VIRTUAL_RECEIVER' => {
-		'pct' => '5:V:LEVEL:?level 1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?time=0.0 3:V:RAMP_TIME_UNIT:0 4:V:RAMP_TIME,RAMP_TIME_VALUE:?ramp=0.5',
-		'on' => 'V:LEVEL:100',
-		'off' => 'V:LEVEL:0',
-		'on-for-timer' => '1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?duration 3:V:LEVEL:100',
-		'on-till' => '1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?time 3:V:LEVEL:100',
-		'up' => 'V:LEVEL:?delta=+10',
-		'down' => 'V:LEVEL:?delta=-10',
-		'color' => 'V:COLOR:#color'
-	},
-	'DIMMER_WEEK_PROFILE' => {
-		'progMode' => 'V:WEEK_PROGRAM_TARGET_CHANNEL_LOCK:#progMode'
 	},
 	'THERMALCONTROL_TRANSMIT' => {
 		'desired-temp' => 'V:SET_TEMPERATURE:?temperature',
@@ -457,29 +484,17 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'week-program' => 'D:WEEK_PROGRAM_POINTER:#program',
 		'get week-program' => 'D:WEEK_PROGRAM_POINTER:#program:HMCCU_DisplayWeekProgram'
 	},
-	'CLIMATECONTROL_RT_TRANSCEIVER' => {
-		'desired-temp' => 'V:SET_TEMPERATURE:?temperature',
-		'manu' => 'V:MANU_MODE:?temperature=20',
-		'on' => 'V:MANU_MODE:30.5',
-		'off' => 'V:MANU_MODE:4.5',
-		'auto' => 'V:AUTO_MODE:1',
-		'boost' => 'V:BOOST_MODE:1',
-		'week-program:VirtualDevices' => 'D:WEEK_PROGRAM_POINTER:#program',
-		'get week-program:VirtualDevices' => 'D:WEEK_PROGRAM_POINTER:#program:HMCCU_DisplayWeekProgram'
+	'VIRTUAL_KEY' => {
+		'on' => 'V:PRESS_SHORT:1',
+		'off' => 'V:PRESS_SHORT:1',
+		'press' => 'V:PRESS_SHORT:1'
 	},
-	'HEATING_CLIMATECONTROL_TRANSCEIVER' => {
-		'desired-temp' => 'V:SET_POINT_TEMPERATURE:?temperature',
-		'auto' => 'V:CONTROL_MODE:0',
-		'manu' => 'V:CONTROL_MODE:1',
-		'holiday' => 'V:CONTROL_MODE:2',
-		'boost' => 'V:BOOST_MODE:1',
-		'on' => 'V:CONTROL_MODE:1 V:SET_POINT_TEMPERATURE:30.5',
-		'off' => 'V:CONTROL_MODE:1 V:SET_POINT_TEMPERATURE:4.5'
-	},
-	'CLIMATECONTROL_REGULATOR' => {
-		'desired-temp' => 'V:SETPOINT:?temperature',
-		'on' => 'V:SETPOINT:30.5',
-		'off' => 'V:SETPOINT:4.5'		
+	'WINMATIC' => {
+		'open' => 'V:LEVEL:100',
+		'close' => 'V:LEVEL:0',
+		'lock' => 'V:LEVEL:-0.5',
+		'pct' => 'V:LEVEL:?level',
+		'stop' => 'V:STOP:1'
 	}
 );
 
@@ -523,7 +538,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'widgetOverride' => 'pct:slider,0,10,100'
 	},
 	'DOOR_LOCK_STATE_TRANSMITTER' => {
-		'cmdIcon' => 'open:fts_door_open unlock:secur_open lock:secur_lock',
+		'cmdIcon' => 'open:fts_door_open unlock:secur_open lock:secur_locked',
 		'webCmd' => 'lock:unlock:open'
 	},
 	'JALOUSIE' => {
@@ -541,7 +556,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'event-on-update-reading' => 'PRESS.*'
 	},
 	'KEYMATIC' => {
-		'cmdIcon' => 'open:fts_door_right_open lock:secure_locked unlock:secur_open',
+		'cmdIcon' => 'open:fts_door_right_open lock:secur_locked unlock:secur_open',
 		'webCmd' => 'open:lock:unlock'
 	},
 	'MOTION_DETECTOR' => {
@@ -579,12 +594,6 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'SWITCH' => {
 		'cmdIcon' => 'on:general_an off:general_aus'
 	},
-	'SWITCH_PANIC' => {
-		'cmdIcon' => 'on:general_an off:general_aus'
-	},
-	'SWITCH_SENSOR' => {
-		'cmdIcon' => 'on:general_an off:general_aus'
-	},
 	'SWITCH_VIRTUAL_RECEIVER' => {
 		'cmdIcon' => 'on:general_an off:general_aus'
 	},
@@ -620,6 +629,13 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'WATER_DETECTION_TRANSMITTER' => {
 		'_none_' => ''
+	},
+	'WINMATIC' => {
+		'ccuflags' => 'noBoundsChecking',
+		'substexcl' => 'pct',
+		'cmdIcon' => 'open:fts_window_1w_tilt stop:rc_STOP close:fts_window_1w lock:secur_locked',
+		'webCmd' => 'pct:open:close:lock:stop',
+		'widgetOverride' => 'pct:slider,0,10,100'
 	}
 );
 
@@ -632,9 +648,6 @@ $HMCCU_CONFIG_VERSION = '5.0';
 ######################################################################
 
 %HMCCU_CONVERSIONS = (
-	'ARMING' => {
-		'ARMSTATE' => { '0' => 'disarmed', '1' => 'extSensArmed', '2' => 'allSensArmed', '3' => 'alarmBlocked' }
-	},
 	'ACCELERATION_TRANSCEIVER' => {
 		'MOTION' => { '0' => 'noMotion', 'false' => 'noMotion', '1' => 'motion', 'true' => 'motion' }
 	},
@@ -755,6 +768,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'WATER_DETECTION_TRANSMITTER' => {
 		'ALARMSTATE' => { '0' => 'noAlarm', '1' => 'Alarm', 'false' => 'noAlarm', 'true' => 'alarm' }
+	},
+	'WINMATIC' => {
+		'LEVEL' => { '0' => 'closed', '100' => 'open', '-0.5' => 'locked' }
 	},
 	'DEFAULT' => {
 		'AES_KEY' => { '0' => 'off', 'false' => 'off', '1' => 'on', 'true' => 'on' },

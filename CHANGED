@@ -1,4 +1,5 @@
  
+ - bugfix:  88_HMCCU.pm: Fixed bugs, added new channel roles
  - bugfix:  88_HMCCU.pm: Fixed device detection bug
  - bugfix:  88_HMCCU.pm: Fixed delayed init and readingname bugs
  - bugfix:  88_HMCCU.pm: Several fixes and improvements
