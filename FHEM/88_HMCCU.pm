@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 213381928';
+my $HMCCU_VERSION = '5.0 213401910';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -9530,7 +9530,7 @@ sub HMCCU_GetUpdate ($$;$$)
 	return -4 if ($type ne 'HMCCU' && $clHash->{ccudevstate} eq 'deleted');
 
 	my $nam = '';
-	my $list = '';
+	my @list = ();
 	my $script = '';
 	$ccuget = HMCCU_GetAttribute ($ioHash, $clHash, 'ccuget', 'Value') if ($ccuget eq 'Attr');
 
@@ -9539,12 +9539,14 @@ sub HMCCU_GetUpdate ($$;$$)
 		return -1 if ($nam eq '');
 		my ($stadd, $stchn) = split (':', $addr);
 		my $stnam = HMCCU_GetChannelName ($ioHash, "$stadd:0");
-		$list = $stnam eq '' ? $nam : $stnam . "," . $nam;
+		push @list, $stnam if ($stnam ne '');
+		push @list, $nam;
 		$script = '!GetDatapointsByChannel';
 	}
 	elsif (HMCCU_IsValidDevice ($ioHash, $addr, $HMCCU_FL_ADDRESS)) {
 		$nam = HMCCU_GetDeviceName ($ioHash, $addr);
 		return -1 if ($nam eq '');
+		push @list, $nam;
 		$script = '!GetDatapointsByDevice';
 
 		# Consider members of group device
@@ -9552,7 +9554,7 @@ sub HMCCU_GetUpdate ($$;$$)
 			exists($clHash->{ccugroup}) && $clHash->{ccugroup} ne '') {
 			foreach my $gd (split (',', $clHash->{ccugroup})) {
 				$nam = HMCCU_GetDeviceName ($ioHash, $gd);
-				$list .= ','.$nam if ($nam ne '');
+				push @list, $nam if ($nam ne '');
 			}
 		}
 	}
@@ -9562,14 +9564,14 @@ sub HMCCU_GetUpdate ($$;$$)
 
 	if (HMCCU_IsFlag ($ioHash->{NAME}, 'nonBlocking')) {
 		# Non blocking request
-		HMCCU_HMScriptExt ($ioHash, $script, { list => $list, ccuget => $ccuget },
+		HMCCU_HMScriptExt ($ioHash, $script, { list => join(',',@list), ccuget => $ccuget },
 			\&HMCCU_UpdateCB, { filter => $filter });
 		return 1;
 	}
 	
 	# Blocking request
 	my $response = HMCCU_HMScriptExt ($ioHash, $script,
-		{ list => $list, ccuget => $ccuget });
+		{ list => join(',',@list), ccuget => $ccuget });
 	HMCCU_Trace ($clHash, 2, "Addr=$addr Name=$nam Script=$script<br>".
 		"Script response = \n".$response);
 	return -2 if ($response eq '' || $response =~ /^ERROR:.*/);

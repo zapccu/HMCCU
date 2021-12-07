@@ -548,12 +548,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'widgetOverride' => 'pct:slider,0,10,100'
 	},
 	'KEY' => {
-		'event-on-update-reading' => 'PRESS.*',
+		'event-on-update-reading' => '.*',
 		'cmdIcon' => 'press:taster',
 		'webCmd' => 'press'
 	},
 	'KEY_TRANSCEIVER' => {
-		'event-on-update-reading' => 'PRESS.*'
+		'event-on-update-reading' => '.*'
 	},
 	'KEYMATIC' => {
 		'cmdIcon' => 'open:fts_door_right_open lock:secur_locked unlock:secur_open',
