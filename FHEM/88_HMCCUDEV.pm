@@ -31,7 +31,7 @@ sub HMCCUDEV_Set ($@);
 sub HMCCUDEV_Get ($@);
 sub HMCCUDEV_Attr ($@);
 
-my $HMCCUDEV_VERSION = '5.0 213401910';
+my $HMCCUDEV_VERSION = '5.0 213461309';
 
 ######################################################################
 # Initialize module
@@ -445,7 +445,7 @@ sub HMCCUDEV_Set ($@)
 	elsif ($lcopt =~ /^(config|values)$/) {
 		return HMCCU_ExecuteSetParameterCommand ($ioHash, $hash, $opt, $a, $h);
 	}
-	elsif ($lcopt =~ 'readingfilter') {
+	elsif ($lcopt eq 'readingfilter') {
 		my $filter = shift @$a // return HMCCU_SetError ($hash, "Usage: set $name readingFilter {datapointList}");
 		$filter = join(';', map { (my $f = $_) =~ s/\.(.+)/\.\^$1\$/; $f } split(',', $filter));
 		return CommandAttr (undef, "$name ccureadingfilter $filter");

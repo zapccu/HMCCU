@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 213401910';
+my $HMCCU_VERSION = '5.0 213461309';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -4327,11 +4327,12 @@ sub HMCCU_GetParamDef ($$$;$)
 		my $a = $devDesc->{ADDRESS};
 		my ($devAddr, $chnNo) = ($a =~ /:[0-9]{1,2}$/) ? HMCCU_SplitChnAddr ($a) : ($a, 'd');
 
-		my $model = HMCCU_GetDeviceModel ($hash, $devDesc->{_model}, $devDesc->{_fw_ver}, $chnNo);
 		if (!defined($paramset)) {
 			HMCCU_Log ($hash, 2, "$a Paramset not defined ".stacktraceAsString(undef));
 			return undef;
 		}
+
+		my $model = HMCCU_GetDeviceModel ($hash, $devDesc->{_model}, $devDesc->{_fw_ver}, $chnNo);
 		if (defined($model) && exists($model->{$paramset})) {
 			if (defined($parameter)) {
 				return exists($model->{$paramset}{$parameter}) ? $model->{$paramset}{$parameter} : undef;
@@ -4723,7 +4724,7 @@ sub HMCCU_UpdateParamsetReadings ($$$;$)
 					HMCCU_UpdateInternalValues ($clHash, $chKey, $ps, 'VAL', $v);
 
 					# Modify value: scale, format, substitute
-					$sv = HMCCU_ScaleValue ($clHash, $c, $p, $v, 0);
+					$sv = HMCCU_ScaleValue ($clHash, $c, $p, $v, 0, $ps);
 					HMCCU_UpdateInternalValues ($clHash, $chKey, $ps, 'NVAL', $sv);
 					HMCCU_Trace ($clHash, 2, "$p: sv = $sv");
 					$fv = HMCCU_FormatReadingValue ($clHash, $sv, $p);
@@ -5856,7 +5857,6 @@ sub HMCCU_IsDeviceActive ($)
 		return 1 if ($disabled == 0 && exists($clHash->{ccuaddr}) && exists($clHash->{ccuif}) && $devstate ne 'inactive');
 	}
 
-	HMCCU_Log ($clHash, 2, "Device disabled or inactive and/or address or interface is missing");
 	return 0;
 }
 
@@ -7608,9 +7608,13 @@ sub HMCCU_ExecuteSetParameterCommand ($@)
 	return HMCCU_SetError ($clHash, "Paramset $paramset not supported by device or channel")
 		if ($devDesc->{PARAMSETS} !~ /$paramset/);
 	if (!HMCCU_IsValidParameter ($ioHash, $devDesc, $paramset, $h)) {
-		my @parList = HMCCU_GetParamDef ($ioHash, $devDesc, $paramset);
-		return HMCCU_SetError ($clHash, 'Invalid parameter specified. Valid parameters are '.
-			join(',', @parList));
+		my $paramDef = HMCCU_GetParamDef ($ioHash, $devDesc, $paramset);
+		if (defined($paramDef)) {
+			my @parList = map { $paramDef->{$_}{OPERATIONS} == 2 ? $_ : () } keys %$paramDef;
+			return HMCCU_SetError ($clHash, 'Invalid parameter specified. Valid parameters: '.
+				join(',', @parList)) if (scalar(@parList) > 0);
+		}
+		return HMCCU_SetError ($clHash, 'Invalid parameter specified');
 	}
 			
 	if ($paramset eq 'VALUES' || $paramset eq 'MASTER') {
@@ -9158,16 +9162,18 @@ sub HMCCU_SetMultipleParameters ($$$;$)
 	$paramSet //= 'VALUES';
 	$address =~ s/:d$//;
 
-	my ($add, $chn) = HMCCU_SplitChnAddr ($address);
-	return (-1, undef) if ($paramSet eq 'VALUES' && !defined($chn));
+	my ($add, $chn) = HMCCU_SplitChnAddr ($address, 'd');
+	return (-1, undef) if ($paramSet eq 'VALUES' && $chn eq 'd');
 	
 	foreach my $p (sort keys %$params) {
-		HMCCU_Trace ($clHash, 2, "Parameter=$address.$paramSet.$p Value=$params->{$p}");
+		HMCCU_Trace ($clHash, 2, "Parameter=$address.$paramSet.$p chn=$chn Value=$params->{$p}");
 		return (-8, undef) if (
 			($paramSet eq 'VALUES' && !HMCCU_IsValidParameter ($clHash, $address, 'VALUES', $p, 2)) ||
 			($paramSet eq 'MASTER' && !HMCCU_IsValidParameter ($clHash, $address, 'MASTER', $p))
 		);
-		$params->{$p} = HMCCU_ScaleValue ($clHash, $chn, $p, $params->{$p}, 1);
+		if ($params->{$p} !~ /:(STRING|BOOL|INTEGER|FLOAT|DOUBLE)$/) {
+			$params->{$p} = HMCCU_ScaleValue ($clHash, $chn, $p, $params->{$p}, 1, $paramSet);
+		}
 	}
 
 	return HMCCU_RPCRequest ($clHash, 'putParamset', $address, $paramSet, $params);
@@ -9301,9 +9307,6 @@ sub HMCCU_ScaleValue ($$$$$;$)
 	my $name = $hash->{NAME};
 	my $ioHash = HMCCU_GetHash ($hash);
 
-	# Only numeric values allowed
-	return $value if (!HMCCU_IsFltNum ($value));
-
 	my $boundsChecking = HMCCU_IsFlag ($name, 'noBoundsChecking') ? 0 : 1;
 
 	# Get parameter definition and min/max values
@@ -9311,7 +9314,12 @@ sub HMCCU_ScaleValue ($$$$$;$)
 	my $max;
 	my $unit;
 	my $ccuaddr = $hash->{ccuaddr};
-	$ccuaddr .= ':'.$chnno if ($hash->{TYPE} eq 'HMCCUDEV' && $chnno ne ''); 
+	if ($hash->{TYPE} eq 'HMCCUDEV' && $chnno ne '' && $chnno ne 'd') {
+		$ccuaddr .= ':'.$chnno;
+	}
+	elsif ($hash->{TYPE} eq 'HMCCUCHN' && $chnno eq 'd') {
+		($ccuaddr, undef) = HMCCU_SplitChnAddr ($ccuaddr); 
+	}
 	my $paramDef = HMCCU_GetParamDef ($ioHash, $ccuaddr, $paramSet, $dpt);
 	if (defined($paramDef)) {
 		$min = $paramDef->{MIN} if (defined($paramDef->{MIN}) && $paramDef->{MIN} ne '');
@@ -9320,7 +9328,7 @@ sub HMCCU_ScaleValue ($$$$$;$)
 		$unit = '100%' if ($dpt eq 'LEVEL' && !defined($unit));
 	}
 	else {
-		HMCCU_Trace ($hash, 2, "Can't get parameter definion for addr=$hash->{ccuaddr} chn=$chnno dpt=$dpt");
+		HMCCU_Trace ($hash, 2, "Can't get parameter definion for addr=$ccuaddr chn=$chnno dpt=$dpt");
 	}
 
 	# Default values can be overriden by attribute
@@ -9328,7 +9336,11 @@ sub HMCCU_ScaleValue ($$$$$;$)
 
 	HMCCU_Trace ($hash, 2, "chnno=$chnno, dpt=$dpt, value=$value, mode=$mode");
 	
+	# Scale by attribute ccuscaleval
 	if ($ccuscaleval ne '' && $mode != 2) {
+		# Only numeric or values allowed
+		return $value if (!HMCCU_IsFltNum ($value));
+
 		HMCCU_Trace ($hash, 2, "ccuscaleval");
 		my @sl = split (',', $ccuscaleval);
 		foreach my $sr (@sl) {
@@ -9382,26 +9394,19 @@ sub HMCCU_ScaleValue ($$$$$;$)
 		
 		HMCCU_Trace ($hash, 2, "Attribute scaled value of $dpt = $value");
 
-		return int($value) == $value ? int($value) : $value;
+		return $mode == 0 && int($value) == $value ? int($value) : $value;
 	}
-	
-	if ($dpt =~ /^RSSI_/) {
+
+	# Auto scale
+	if ($dpt =~ /^RSSI_/ && $mode == 0) {
 		# Subtract 256 from Rega value (Rega bug)
 		$value = abs ($value) == 65535 || $value == 0 ? 'N/A' : ($value > 0 ? $value-256 : $value);
 	}
-	elsif ($dpt =~ /^(P[0-9]_)?ENDTIME/) {
-		if ($mode == 0) {
-			my $hh = sprintf ("%02d", int($value/60));
-			my $mm = sprintf ("%02d", $value%60);
-			$value = "$hh:$mm";
-		}
-		else {
-			my ($hh, $mm) = split (':', $value);
-			$mm //= 0;
-			$value = $hh*60+$mm;
-		} 
+	elsif (defined($unit) && ($unit eq 'minutes' || $unit eq 's')) {
+		$value = HMCCU_ConvertTime ($value, $unit, $mode);
 	}
 	elsif (defined($unit) && $unit =~ /^([0-9]+)%$/) {
+		# percentage values
 		my $f = $1;
 		$min //= 0;
 		$max //= 1.0;
@@ -9974,6 +9979,45 @@ sub HMCCU_GetTimeSpec ($)
 	$s += 86400 if ($cs > $s);
 	
 	return ($s-$cs);
+}
+
+######################################################################
+# Convert time values
+#   $value - Time value, format:
+#      $mode = 0: n
+#      $mode = 1, unit = s: [[hh:]mm:]ss
+#      $mode = 1, unit = minutes: [hh:]mm
+#   $unit - s or minutes
+#   $mode - 0 = Get, 1 = Set 
+######################################################################
+
+sub HMCCU_ConvertTime ($$$)
+{
+	my ($value, $unit, $mode) = @_;
+
+	return $value if ($unit ne 'minutes' && $unit ne 's');
+
+	if ($mode == 0) {
+		my $f = $unit eq 'minutes' ? 60 : 3600;
+		my @t = ();
+		while ($f >= 60) {
+			push @t, sprintf('%02d',int($value/$f));
+			$value = $value%$f;
+			$f = $f/60;
+		}
+		push @t, sprintf('%02d',$value);
+		return join(':',@t);
+	}
+	else {
+		my @t = split(':',$value);
+		my $f = scalar(@t) == 1 ? 1 : ($unit eq 'minutes' ? 60 : (scalar(@t) == 3 ? 3600 : 60));
+		my $r = 0;
+		foreach my $v (@t) {
+			$r = $r+$v*$f;
+			$f = $f/60;
+		}
+		return $r;
+	}
 }
 
 ######################################################################

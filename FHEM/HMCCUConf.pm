@@ -218,29 +218,29 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'ARMING' =>
 		'^(C#\.)?ARMSTATE$:+armState',
 	'BLIND' =>
-		'^(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct,+level',
 	'BLIND_TRANSMITTER' =>
-		'^(C#\.)?LEVEL$:+pct;^(C#\.)?LEVEL_2$:+pctSlats',
+		'^(C#\.)?LEVEL$:+pct,+level;^(C#\.)?LEVEL_2$:+pctSlats',
 	'BLIND_VIRTUAL_RECEIVER' =>
-		'^(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct,+level',
 	'SHUTTER_TRANSMITTER' =>
-		'^(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct,+level',
 	'SHUTTER_VIRTUAL_RECEIVER' =>
-		'^(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct,+level',
 	'SWITCH_PANIC' =>
 		'^(C#\.)?STATE$:+panic',
 	'SWITCH_SENSOR' =>
 		'^(C#\.)?STATE$:+sensor',
 	'DIMMER' =>
-		'^(C#\.)?LEVEL$:+pct',
+		'^(C#\.)?LEVEL$:+pct,+level',
 	'DIMMER_TRANSMITTER' =>
-		'^(C#\.)?LEVEL$:+pct;(C#\.)?COLOR$:+color',
+		'^(C#\.)?LEVEL$:+pct,+level;(C#\.)?COLOR$:+color',
 	'DIMMER_VIRTUAL_RECEIVER' =>
-		'^(C#\.)?LEVEL$:+pct;(C#\.)?COLOR$:+color',
+		'^(C#\.)?LEVEL$:+pct,+level;(C#\.)?COLOR$:+color',
 	'DIMMER_WEEK_PROFILE' =>
 		'^(C#\.)?WEEK_PROGRAM_CHANNEL_LOCKS$:+progMode',
 	'JALOUSIE' =>
-		'^(C#\.)?LEVEL$:+pct;(C#\.)?LEVEL_SLATS$:+pctSlats',
+		'^(C#\.)?LEVEL$:+pct,+level;(C#\.)?LEVEL_SLATS$:+pctSlats',
 	'KEY' =>
 		'^(C#\.)?PRESS_(SHORT|LONG)$:+pressed',
 	'KEY_TRANSCEIVER' =>
@@ -280,7 +280,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'CLIMATECONTROL_REGULATOR' =>
 		'^(C#\.)?SETPOINT$:+desired-temp',
 	'DEFAULT' =>
-		'^([0-9]{1,2}\.)?LEVEL$:+pct;'.
+		'^([0-9]{1,2}\.)?LEVEL$:+pct,+level;'.
 		'^([0-9]{1,2}\.)?SET_TEMPERATURE$:+desired-temp;'.
 		'^([0-9]{1,2}\.)?(ACTUAL_TEMPERATURE|TEMPERATURE)$:+measured-temp;'.
 		'^([0-9]{1,2}\.)?SET_POINT_TEMPERATURE$:+desired-temp;'.
@@ -347,7 +347,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'pct' => 'V:LEVEL:?level',
 		'open' => 'V:LEVEL:100',
 		'close' => 'V:LEVEL:0',
-		'old' => 'V:LEVEL:100.5',
+		'oldLevel' => 'V:LEVEL:100.5',
 		'up' => 'V:LEVEL:?delta=+20',
 		'down' => 'V:LEVEL:?delta=-20',
 		'stop' => 'V:STOP:1',
@@ -372,6 +372,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'DIMMER' => {
 		'pct' => '3:V:LEVEL:?level 1:V:ON_TIME:?time=0.0 2:V:RAMP_TIME:?ramp=0.5',
+		'level' => 'V:LEVEL:?level',
 		'on' => 'V:LEVEL:100',
 		'off' => 'V:LEVEL:0',
 		'on-for-timer' => 'V:ON_TIME:?duration V:LEVEL:100',
@@ -382,9 +383,10 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'DIMMER_VIRTUAL_RECEIVER' => {
 		'pct' => '5:V:LEVEL:?level 1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?time=0.0 3:V:RAMP_TIME_UNIT:0 4:V:RAMP_TIME,RAMP_TIME_VALUE:?ramp=0.5',
+		'level' => 'V:LEVEL:?level',
 		'on' => 'V:LEVEL:100',
 		'off' => 'V:LEVEL:0',
-		'old' => 'V:LEVEL:100.5',
+		'oldLevel' => 'V:LEVEL:100.5',
 		'on-for-timer' => '1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?duration 3:V:LEVEL:100',
 		'on-till' => '1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?time 3:V:LEVEL:100',
 		'up' => 'V:LEVEL:?delta=+10',
@@ -443,7 +445,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'SHUTTER_VIRTUAL_RECEIVER' => {
 		'pct' => 'V:LEVEL:?level',
 		'open' => 'V:LEVEL:100',
-		'old' => 'V:LEVEL:100.5',
+		'oldLevel' => 'V:LEVEL:100.5',
 		'close' => 'V:LEVEL:0',
 		'up' => 'V:LEVEL:?delta=+20',
 		'down' => 'V:LEVEL:?delta=-20',
@@ -524,18 +526,18 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'DIMMER' => {
 		'cmdIcon' => 'on:general_an off:general_aus',
-		'substexcl' => 'pct',
-		'webCmd' => 'pct:on:off',
-		'widgetOverride' => 'pct:slider,0,10,100'
+		'substexcl' => 'pct|level',
+		'webCmd' => 'level:on:off',
+		'widgetOverride' => 'level:slider,0,10,100'
 	},
 	'DIMMER_TRANSMITTER' => {
-		'substexcl' => 'pct'
+		'substexcl' => 'pct|level'
 	},
 	'DIMMER_VIRTUAL_RECEIVER' => {
 		'cmdIcon' => 'on:general_an off:general_aus',
-		'substexcl' => 'pct',
-		'webCmd' => 'pct:on:off',
-		'widgetOverride' => 'pct:slider,0,10,100'
+		'substexcl' => 'pct|level',
+		'webCmd' => 'level:on:off',
+		'widgetOverride' => 'level:slider,0,10,100'
 	},
 	'DOOR_LOCK_STATE_TRANSMITTER' => {
 		'cmdIcon' => 'open:fts_door_open unlock:secur_open lock:secur_locked',

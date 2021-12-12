@@ -30,7 +30,7 @@ sub HMCCUCHN_Set ($@);
 sub HMCCUCHN_Get ($@);
 sub HMCCUCHN_Attr ($@);
 
-my $HMCCUCHN_VERSION = '5.0 213401910';
+my $HMCCUCHN_VERSION = '5.0 213461309';
 
 ######################################################################
 # Initialize module
@@ -357,7 +357,7 @@ sub HMCCUCHN_Set ($@)
 	elsif ($lcopt =~ /^(config|values)$/) {
 		return HMCCU_ExecuteSetParameterCommand ($ioHash, $hash, $lcopt, $a, $h);
 	}
-	elsif ($lcopt =~ 'readingfilter') {
+	elsif ($lcopt eq 'readingfilter') {
 		my $filter = shift @$a // return HMCCU_SetError ($hash, "Usage: set $name readingFilter {datapointList}");
 		$filter =~ s/,/\|/g;
 		$filter = '^('.$filter.')$';
@@ -545,7 +545,9 @@ sub HMCCUCHN_Get ($@)
          Parameter <i>parameter</i> must be a valid configuration parameter.
          If <i>type</i> is not specified, it's taken from parameter set definition. If type 
          cannot be determined, the default <i>type</i> STRING is used.
-         Valid types are STRING, BOOL, INTEGER, FLOAT, DOUBLE.<br/><br/>
+         Valid types are STRING, BOOL, INTEGER, FLOAT, DOUBLE.<br>
+		 If unit of <i>parameter</i> is 'minutes' (i.e. endtime in a week profile), value/time can
+		 be specified in minutes after midnight or in format hh:mm (hh=hours, mm=minutes).<br/><br/>
          Example 1: Set device parameter AES<br/>
          <code>set myDev config device AES=1</code><br/>
          Example 2: Set channel parameters MIN and MAX with type definition<br/>
@@ -583,7 +585,7 @@ sub HMCCUCHN_Get ($@)
 	  <li><b>set &lt;name&gt; off</b><br/>
 	  	Turn device off.
 	  </li><br/>
-	  <li><b>set &lt;name&gt; old</b><br/>
+	  <li><b>set &lt;name&gt; oldLevel</b><br/>
 	    [dimmer, blind] Set level to previous value. The command is only available if channel
 		contains a datapoint LEVEL with a maximum value of 1.01.
 	  </li><br/>
