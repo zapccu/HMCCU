@@ -1,6 +1,12 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 213551543</h2>
+
+<ul>
+<li>Fixed ENUM conversion bug</li>
+</ul>
+
 <h2>Version 5.0 213491649</h2>
 
 <ul>
