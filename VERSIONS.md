@@ -1,6 +1,14 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 220061807</h2>
+
+<ul>
+<li>#196 - Added support for garage door switch HmIP-MOD-TM. Commands: set open|stop|close|ventilate</li>
+<li>#194 - Add support for homebrew disctance sensor HB-UNI-Sen-DIST-US</li>
+<li>#202 - Added command 'set pressLong' for device role 'KEY'</li>
+</ul>
+
 <h2>Version 5.0 220021858</h2>
 
 <ul>
