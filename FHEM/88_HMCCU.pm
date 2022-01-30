@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 220251847';
+my $HMCCU_VERSION = '5.0 220301356';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -2724,6 +2724,7 @@ sub HMCCU_Log ($$$;$)
 	else {
 		Log3 $logname, $level, "$type [$name] $msg";
 	}
+
 	return $rc;
 }
 
@@ -3901,6 +3902,7 @@ sub HMCCU_GetDeviceConfig ($)
 		my ($rpcdev, $save) = HMCCU_GetRPCDevice ($ioHash, 1, $iface);
 		if ($rpcdev ne '') {
 			my $rpcHash = $defs{$rpcdev};
+			HMCCURPCPROC_Connect ($rpcHash, $ioHash);
 			HMCCU_Log ($ioHash, 2, "Reading Device Descriptions for interface $iface");
 			$c = HMCCURPCPROC_GetDeviceDesc ($rpcHash);
 			HMCCU_Log ($ioHash, 2, "Read $c Device Descriptions for interface $iface");
@@ -3913,6 +3915,7 @@ sub HMCCU_GetDeviceConfig ($)
 			$c = HMCCURPCPROC_GetPeers ($rpcHash);
 			HMCCU_Log ($ioHash, 2, "Read $c Peer Descriptions for interface $iface");
 			$cLnk += $c;
+			HMCCURPCPROC_Disconnect ($rpcHash, $ioHash);
 		}
 		else {
 			HMCCU_Log ($ioHash, 2, "No RPC device found for interface $iface. Can't read device config.");

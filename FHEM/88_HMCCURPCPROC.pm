@@ -26,7 +26,7 @@ package main;
 use strict;
 use warnings;
 
-use Data::Dumper;
+# use Data::Dumper;
 use RPC::XML::Client;
 use RPC::XML::Server;
 use SetExtensions;
@@ -39,7 +39,7 @@ require "$attr{global}{modpath}/FHEM/88_HMCCU.pm";
 ######################################################################
 
 # HMCCURPC version
-my $HMCCURPCPROC_VERSION = '5.0 220251847';
+my $HMCCURPCPROC_VERSION = '5.0 220301356';
 
 # Maximum number of events processed per call of Read()
 my $HMCCURPCPROC_MAX_EVENTS = 100;
@@ -66,7 +66,7 @@ my $HMCCURPCPROC_TIMEOUT_CONNECTION = 1;
 my $HMCCURPCPROC_TIMEOUT_WRITE = 0.001;
 
 # Timeout for reading from Socket
-my $HMCCURPCPROC_TIMEOUT_READ = 0.005;
+my $HMCCURPCPROC_TIMEOUT_READ = 0.01;
 
 # Timeout for accepting incoming connections in seconds (0 = default)
 my $HMCCURPCPROC_TIMEOUT_ACCEPT = 1;
@@ -88,6 +88,12 @@ my $HMCCURPCPROC_INIT_INTERVAL2 = 30;
 
 # Delay for RPC server functionality check after start in seconds
 my $HMCCURPCPROC_INIT_INTERVAL3 = 25;
+
+my %HMCCURPCPROC_RPC_FLAGS = (
+   'BidCos-Wired' => '_', 'BidCos-RF' => 'multicalls', 'HmIP-RF' => '_',
+   'VirtualDevices' => '_', 'Homegear' => '_', 'CUxD' => '_',
+   'HVL' => '_'
+);
 
 # BinRPC data types
 my $BINRPC_INTEGER = 1;
@@ -182,8 +188,9 @@ sub HMCCURPCPROC_ResetRPCState ($);
 sub HMCCURPCPROC_RPCPing ($);
 sub HMCCURPCPROC_RPCServerStarted ($);
 sub HMCCURPCPROC_RPCServerStopped ($);
-sub HMCCURPCPROC_Connect ($$$);
-sub HMCCURPCPROC_Disconnect ($$$);
+sub HMCCURPCPROC_Connect ($;$);
+sub HMCCURPCPROC_Disconnect ($;$);
+sub HMCCURPCPROC_IsConnected ($);
 sub HMCCURPCPROC_SendRequest ($@);
 sub HMCCURPCPROC_SendXMLRequest ($@);
 sub HMCCURPCPROC_SendBINRequest ($@);
@@ -268,7 +275,7 @@ sub HMCCURPCPROC_Initialize ($)
 	$hash->{AttrList} = 'ccuflags:multiple-strict,expert,logEvents,ccuInit,queueEvents,noEvents,noInitialUpdate,noMulticalls,statistics'.
 		' rpcMaxEvents rpcQueueSend rpcQueueSize rpcMaxIOErrors'. 
 		' rpcServerAddr rpcServerPort rpcReadTimeout rpcWriteTimeout rpcAcceptTimeout'.
-		' rpcConnTimeout rpcStatistics rpcEventTimeout rpcPingCCU '.
+		' rpcRetryRequest:0,1,2 rpcConnTimeout rpcStatistics rpcEventTimeout rpcPingCCU '.
 		$readingFnAttributes;
 }
 
@@ -435,8 +442,11 @@ sub HMCCURPCPROC_InitDevice ($$)
 	}
 	elsif (ref($resp) eq 'ARRAY') {
 		$devHash->{hmccu}{rpc}{methods} = join(',',@$resp);
-		if ($devHash->{hmccu}{rpc}{methods} =~ /(system\.multicall)/i) {
+		if (exists($HMCCURPCPROC_RPC_FLAGS{$ifname}) && $HMCCURPCPROC_RPC_FLAGS{$ifname} =~ /multicalls/ &&
+			$devHash->{hmccu}{rpc}{methods} =~ /(system\.multicall)/i)
+		{
 			$devHash->{hmccu}{rpc}{multicall} = $1;
+			HMCCU_Log ($devHash, 2, "CCU interface $ifname supports RPC multicalls");
 		}
 		else {
 			HMCCU_Log ($devHash, 2, "CCU interface $ifname doesn't support RPC multicalls");
@@ -1890,34 +1900,36 @@ sub HMCCURPCPROC_StopRPCServer ($$)
 # Return value depends on RPC interface:
 #   XML: Return RPC::XML::Client
 #   BIN: Return binary TCP socket
-# Return undef on error.
+# Return 0 = error, 1 = success.
 ######################################################################
 
-sub HMCCURPCPROC_Connect ($$$)
+sub HMCCURPCPROC_Connect ($;$)
 {
-	my ($hash, $ioHash, $port) = @_;
+	my ($hash, $ioHash) = @_;
+	$ioHash //= $hash->{IODev};
 
 	# Connection already established
 	return $hash->{hmccu}{rpc}{connection} if (defined($hash->{hmccu}{rpc}{connection}));
 
-	if (HMCCU_IsRPCType ($ioHash, $port, 'A')) {
+	if (HMCCU_IsRPCType ($ioHash, $hash->{rpcport}, 'A')) {
 		# Build the request URL
-		my $clurl = HMCCU_BuildURL ($ioHash, $port);
-		if (!defined($clurl)) {
-			HMCCU_Log ($hash, 2, "Can't get RPC client URL for port $port");
-			return undef;
-		}
+		my $clurl = HMCCU_BuildURL ($ioHash, $hash->{rpcport});
+		return HMCCU_Log ($hash, 2, "Can't get RPC client URL for port $hash->{rpcport}", 0) if (!defined($clurl));
 
-		$hash->{hmccu}{rpc}{connection} = RPC::XML::Client->new ($clurl, useragent => [
-			ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 }
-		]);
+		my $header = HTTP::Headers->new ('Connection' => 'Keep-Alive');
+		$hash->{hmccu}{rpc}{connection} = RPC::XML::Client->new ($clurl,
+			useragent => [
+				ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 },
+				default_headers => $header
+			]
+		);
 	}
-	elsif (HMCCU_IsRPCType ($ioHash, $port, 'B')) {
-		my ($serveraddr) = HMCCU_GetRPCServerInfo ($ioHash, $port, 'host');
-		return HMCCU_Log ($ioHash, 2, "Can't get server address for port $port", undef) if (!defined($serveraddr));
+	elsif (HMCCU_IsRPCType ($ioHash, $hash->{rpcport}, 'B')) {
+		my ($serveraddr) = HMCCU_GetRPCServerInfo ($ioHash, $hash->{rpcport}, 'host');
+		return HMCCU_Log ($ioHash, 2, "Can't get server address for port $hash->{rpcport}", 0) if (!defined($serveraddr));
 
 		$hash->{hmccu}{rpc}{connection} = IO::Socket::INET->new (
-			PeerHost => $serveraddr, PeerPort => $port, Proto => 'tcp', Timeout => 3
+			PeerHost => $serveraddr, PeerPort => $hash->{rpcport}, Proto => 'tcp', Timeout => 3
 		);
 		if ($hash->{hmccu}{rpc}{connection}) {
 			$hash->{hmccu}{rpc}{connection}->autoflush (1);
@@ -1925,26 +1937,39 @@ sub HMCCURPCPROC_Connect ($$$)
 		}
 	}
 
-	HMCCU_Log ($hash, 2, "Can't connect to RPC interface") if (!defined($hash->{hmccu}{rpc}{connection}));
+	return HMCCU_Log ($hash, 2, "Can't connect to RPC interface", 0) if (!defined($hash->{hmccu}{rpc}{connection}));
 
-	return $hash->{hmccu}{rpc}{connection};
+	return 1;
 }
 
 ######################################################################
 # Close RPC connection
 ######################################################################
 
-sub HMCCURPCPROC_Disconnect ($$$)
+sub HMCCURPCPROC_Disconnect ($;$)
 {
-	my ($hash, $ioHash, $port) = @_;
+	my ($hash, $ioHash) = @_;
+	$ioHash //= $hash->{IODev};
 
 	return if (!defined($hash->{hmccu}{rpc}{connection}));
 
-	if (HMCCU_IsRPCType ($ioHash, $port, 'B')) {
+	if (HMCCU_IsRPCType ($ioHash, $hash->{rpcport}, 'B')) {
+		# Close socket
 		$hash->{hmccu}{rpc}{connection}->close();
 	}
 
 	delete $hash->{hmccu}{rpc}{connection};
+}
+
+######################################################################
+# Check if connection to CCU is established
+######################################################################
+
+sub HMCCURPCPROC_IsConnected ($)
+{
+	my ($hash) = @_;
+
+	return defined($hash->{hmccu}{rpc}{connection}) ? 1 : 0;
 }
 
 ######################################################################
@@ -2047,7 +2072,24 @@ sub HMCCURPCPROC_SendRequest ($@)
 		return (undef, 'I/O device not found');
 	}
 
+	my $retry = AttrVal ($hash->{NAME}, 'rpcRetryRequest', 1);
+	$retry = 2 if ($retry > 2);
 	$hash->{hmccu}{rpc}{requests} //= 0;	# Count RPC requests
+
+	# Multicall request
+	if ($request eq 'system.multicall' && (
+		HMCCU_IsFlag ($hash, 'noMulticalls') || !defined($hash->{hmccu}{rpc}{multicall}) || HMCCU_IsRPCType ($ioHash, $port, 'B')
+	)) {
+		# If multicalls are not supported or disabled, execute multiple requests
+		my @respList = ();
+		my $reqList = shift @param;   # Reference to request array
+		foreach my $r (@$reqList) {
+			my ($resp, $err) = HMCCURPCPROC_SendRequest ($hash, $r->{methodName}, @{$r->{params}});
+			return ($resp, $err) if (!defined($resp));
+			push @respList, $resp;
+		}
+		return (\@respList, undef);
+	}
 
 	# Check request syntax
 	return (undef, "Request method $request not supported by CCU interface")
@@ -2062,36 +2104,42 @@ sub HMCCURPCPROC_SendRequest ($@)
 		}
 	}
 
-	# Multicall request
-	if ($request eq 'system.multicall' && (
-		HMCCU_IsFlag ($hash, 'noMulticall') || !defined($hash->{hmccu}{rpc}{multicall}) || HMCCU_IsRPCType ($ioHash, $port, 'B')
-	)) {
-		# If multicalls are not supported or disabled, execute multiple requests
-		HMCCU_Log ($hash, 4, "Multicall not supported or disable");
-		my @respList = ();
-		my $reqList = shift @param;   # Reference to request array
-		foreach my $r (@$reqList) {
-			my ($resp, $err) = HMCCURPCPROC_SendRequest ($hash, $r->{methodName}, @{$r->{params}});
-			return ($resp, $err) if (!defined($resp));
-			push @respList, $resp;
+	# Reuse existing connection
+	my $alreadyConnected = HMCCURPCPROC_IsConnected ($hash);
+	if (!$alreadyConnected) {
+		if (!HMCCURPCPROC_Connect ($hash, $ioHash)) {
+			return (undef, "Can't connect to CCU");
 		}
-		return (\@respList, undef);
 	}
 
-	if (HMCCU_IsRPCType ($ioHash, $port, 'A')) {
-		# XML RPC request
-		$hash->{hmccu}{rpc}{requests}++;
-		return HMCCURPCPROC_SendXMLRequest ($hash, $ioHash, $port, $request, @param);
+	my $resp;
+	my $err;
+
+	for (my $reqNo=0; $reqNo<=$retry; $reqNo++) {
+		if (HMCCU_IsRPCType ($ioHash, $port, 'A')) {
+			# XML RPC request
+			$hash->{hmccu}{rpc}{requests}++;
+			($resp, $err) = HMCCURPCPROC_SendXMLRequest ($hash, $ioHash, $request, @param);
+			last if (defined($resp));
+		}
+		elsif (HMCCU_IsRPCType ($ioHash, $port, 'B')) {
+			# Binary RPC request
+			$hash->{hmccu}{rpc}{requests}++;
+			($resp, $err) = HMCCURPCPROC_SendBINRequest ($hash, $ioHash, $request, @param);
+			last if (defined($resp));
+		}
+		else {
+			HMCCU_Log ($hash, 2, 'Unknown RPC server type', undef);
+			return (undef, 'Unknown RPC server type');
+		}
+		HMCCU_Log ($hash, 2, "Retrying request $request");
 	}
-	elsif (HMCCU_IsRPCType ($ioHash, $port, 'B')) {
-		# Binary RPC request
-		$hash->{hmccu}{rpc}{requests}++;
-		return HMCCURPCPROC_SendBINRequest ($hash, $ioHash, $port, $request, @param);
+
+	if (!$alreadyConnected) {
+		HMCCURPCPROC_Disconnect ($hash, $ioHash);
 	}
-	else {
-		HMCCU_Log ($hash, 2, 'Unknown RPC server type', undef);
-		return (undef, 'Unknown RPC server type');
-	}
+
+	return ($resp, $err);
 }
 
 ######################################################################
@@ -2103,8 +2151,9 @@ sub HMCCURPCPROC_SendRequest ($@)
 
 sub HMCCURPCPROC_SendXMLRequest ($@)
 {
-	my ($hash, $ioHash, $port, $request, @param) = @_;
+	my ($hash, $ioHash, $request, @param) = @_;
 	my $name = $hash->{NAME};
+	my $port = $hash->{rpcport};
 	
 	my $re = ':('.join('|', keys(%BINRPC_TYPE_MAPPING)).')';
 
@@ -2116,14 +2165,14 @@ sub HMCCURPCPROC_SendXMLRequest ($@)
 	}	
 	HMCCU_Log ($hash, 4, "Send ASCII XML RPC request $request to $clurl");
 
-	my $rpcclient = RPC::XML::Client->new ($clurl, useragent => [
-		ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 }
-	]);
+#	my $rpcclient = RPC::XML::Client->new ($clurl, useragent => [
+#		ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 }
+#	]);
 
 	my @rpcParam = map { HMCCURPCPROC_XMLEncValue ($_) } @param;
 
 	# Submit RPC request
-	my $resp = $rpcclient->simple_request ($request, @rpcParam);
+	my $resp = $hash->{hmccu}{rpc}{connection}->simple_request ($request, @rpcParam);
 	if (!defined($resp)) {
 		HMCCU_Log ($hash, 2, "RPC request $request failed: ".$RPC::XML::ERROR);
 		return (undef, "RPC request $request failed: ".$RPC::XML::ERROR);
@@ -2145,14 +2194,15 @@ sub HMCCURPCPROC_SendXMLRequest ($@)
 
 sub HMCCURPCPROC_SendBINRequest ($@)
 {
-	my ($hash, $ioHash, $port, $request, @param) = @_;
+	my ($hash, $ioHash, $request, @param) = @_;
 	my $name = $hash->{NAME};
+#	my $port = $hash->{rpcport};
 	
-	my ($serveraddr) = HMCCU_GetRPCServerInfo ($ioHash, $port, 'host');
-	if (!defined($serveraddr)) {
-		HMCCU_Log ($ioHash, 2, "Can't get server address for port $port");
-		return (undef, "Can't get server address for port $port");
-	}
+#	my ($serveraddr) = HMCCU_GetRPCServerInfo ($ioHash, $port, 'host');
+#	if (!defined($serveraddr)) {
+#		HMCCU_Log ($ioHash, 2, "Can't get server address for port $port");
+#		return (undef, "Can't get server address for port $port");
+#	}
 
 	my $timeoutRead  = AttrVal ($name, 'rpcReadTimeout',  $HMCCURPCPROC_TIMEOUT_READ);
 	my $timeoutWrite = AttrVal ($name, 'rpcWriteTimeout',  $HMCCURPCPROC_TIMEOUT_WRITE);	
@@ -2168,19 +2218,19 @@ sub HMCCURPCPROC_SendBINRequest ($@)
 	}
 
 	# Create a socket connection
-	my $socket = IO::Socket::INET->new (PeerHost => $serveraddr, PeerPort => $port, Proto => 'tcp', Timeout => 3);
-	if (!$socket) {
-		HMCCU_Log ($hash, 2, "Can't create socket for $serveraddr:$port");
-		return (undef, "Can't create socket for $serveraddr:$port");
-	}
+#	my $socket = IO::Socket::INET->new (PeerHost => $serveraddr, PeerPort => $port, Proto => 'tcp', Timeout => 3);
+#	if (!$socket) {
+#		HMCCU_Log ($hash, 2, "Can't create socket for $serveraddr:$port");
+#		return (undef, "Can't create socket for $serveraddr:$port");
+#	}
 
-	$socket->autoflush (1);
-	$socket->timeout (1);
+#	$socket->autoflush (1);
+#	$socket->timeout (1);
 	
-	my ($bytesWritten, $errmsg) = HMCCURPCPROC_WriteToSocket ($socket, $encreq, $timeoutWrite);
+	my ($bytesWritten, $errmsg) = HMCCURPCPROC_WriteToSocket ($hash->{hmccu}{rpc}{connection}, $encreq, $timeoutWrite);
 	if ($bytesWritten > 0) {
-		my ($bytesRead, $encresp) = HMCCURPCPROC_ReadFromSocket ($hash, $socket, $timeoutRead);
-		$socket->close ();
+		my ($bytesRead, $encresp) = HMCCURPCPROC_ReadFromSocket ($hash, $hash->{hmccu}{rpc}{connection}, $timeoutRead);
+#		$socket->close ();
 	
 		if ($bytesRead > 0) {
 			if ($ccuflags =~ /logEvents/) {
@@ -2192,11 +2242,14 @@ sub HMCCURPCPROC_SendBINRequest ($@)
 			return $response;
 		}
 		else {
+			# Reconnect
+			HMCCURPCPROC_Disconnect ($hash, $ioHash);
+			HMCCURPCPROC_Connect ($hash, $ioHash);
 			return (undef, "Error while reading response for command $request: $encresp");
 		}
 	}
 	else {
-		$socket->close ();
+#		$socket->close ();
 		return (undef, "No data sent for request $request: $errmsg");
 	}
 }
@@ -3493,7 +3546,7 @@ sub HMCCURPCPROC_DecodeResponse ($)
 			logEvents - Events are written into FHEM logfile if verbose is 4<br/>
 			noEvents - Ignore events from CCU, do not update client device readings.<br/>
 			noInitalUpdate - Do not update devices after RPC server started.<br/>
-			noMulticalls - Do not execute RPC requests as multicalls<br/>
+			noMulticalls - Do not execute RPC requests as multicalls (only BidCos-RF)<br/>
 			queueEvents - Always write events into queue and send them asynchronously to FHEM.
 			Frequency of event transmission to FHEM depends on attribute rpcConnTimeout.<br/>
 			statistics - Count events per device sent by CCU<br/>
@@ -3537,6 +3590,10 @@ sub HMCCURPCPROC_DecodeResponse ($)
 		Wait the specified time for socket to become readable. Default value is 0.005 seconds.
 		When using a CCU2 and parameter set definitions cannot be read (timeout), increase this
 		value, i.e. to 0.01. Drawback: This could slow down the FHEM start time.
+	   </li><br/>
+	   <li><b>rpcRetryRequest &lt;retries&gt;</b><br/>
+	    Number of times, failed RPC requests are repeated. Default is 1. Parameter <i>retries</i>
+		must be in range 0-2.
 	   </li><br/>
 	   <li><b>rpcServerAddr &lt;ip-address&gt;</b><br/>
 	   	Set local IP address of RPC servers on FHEM system. If attribute is missing the

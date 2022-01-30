@@ -1,6 +1,12 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 220301356</h2>
+
+<ul>
+<li>#210 - Reduce number of RPC requests during CCU sync</li>
+</ul>
+
 <h2>Version 5.0 220061807</h2>
 
 <ul>
