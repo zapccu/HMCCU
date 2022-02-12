@@ -1,6 +1,19 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 220431743</h2>
+
+<ul>
+<li>#219 - Attribure ccureadingname not working as expected</li>
+<li>#217 - Added support for HM-Sec-TiS</li>
+<li>#215 - Response of RPC request not handled correctly</li>
+<li>#212 - Remove user credentials from FHEM log messages</li>
+<li>#211 - Provide meaningful error messages for HMCCURPCPROC command 'set rpcrequest'</li>
+<li>#208 - Validate parameters for internal min/max functions</li>
+<li>#201 - Fixed problem with e-paper display</li>
+<li>#193 - Removed 'require' from module headers</li>
+</ul>
+
 <h2>Version 5.0 220301356</h2>
 
 <ul>
