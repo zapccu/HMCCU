@@ -4,7 +4,7 @@
 #
 #  $Id: 88_HMCCURPCPROC.pm 18745 2019-02-26 17:33:23Z zap $
 #
-#  Version 5.0
+#  Version 5.1
 #
 #  Subprocess based RPC Server module for HMCCU.
 #
@@ -27,6 +27,10 @@ use strict;
 use warnings;
 
 # use Data::Dumper;
+use LWP::UserAgent;
+use IO::Socket::SSL qw( SSL_VERIFY_NONE );
+use HTTP::Request::Common;
+use XML::LibXML;
 use RPC::XML::Client;
 use RPC::XML::Server;
 use SetExtensions;
@@ -39,7 +43,7 @@ use SetExtensions;
 ######################################################################
 
 # HMCCURPC version
-my $HMCCURPCPROC_VERSION = '5.0 220431743';
+my $HMCCURPCPROC_VERSION = '5.1 220431743';
 
 # Maximum number of events processed per call of Read()
 my $HMCCURPCPROC_MAX_EVENTS = 100;
@@ -223,31 +227,32 @@ sub HMCCURPCPROC_ReaddDevicesCB ($$$);
 sub HMCCURPCPROC_EventCB ($$$$$);
 sub HMCCURPCPROC_ListDevicesCB ($$);
 
-# RPC encoding functions
 sub HMCCURPCPROC_XMLEncValue ($;$);
-sub HMCCURPCPROC_EncInteger ($);
-sub HMCCURPCPROC_EncBool ($);
-sub HMCCURPCPROC_EncString ($);
-sub HMCCURPCPROC_EncName ($);
-sub HMCCURPCPROC_EncDouble ($);
-sub HMCCURPCPROC_EncBase64 ($);
-sub HMCCURPCPROC_EncArray ($);
-sub HMCCURPCPROC_EncStruct ($);
+
+# Binary RPC encoding functions
+sub HMCCURPCPROC_EncBinInteger ($);
+sub HMCCURPCPROC_EncBinBool ($);
+sub HMCCURPCPROC_EncBinString ($);
+sub HMCCURPCPROC_EncBinName ($);
+sub HMCCURPCPROC_EncBinDouble ($);
+sub HMCCURPCPROC_EncBinBase64 ($);
+sub HMCCURPCPROC_EncBinArray ($);
+sub HMCCURPCPROC_EncBinStruct ($);
 sub HMCCURPCPROC_EncType ($;$);
-sub HMCCURPCPROC_EncodeRequest ($$);
-sub HMCCURPCPROC_EncodeResponse ($;$);
+sub HMCCURPCPROC_EncodeBinRequest ($$);
+sub HMCCURPCPROC_EncodeBinResponse ($;$);
 
 # Binary RPC decoding functions
-sub HMCCURPCPROC_DecInteger ($$$);
-sub HMCCURPCPROC_DecBool ($$);
-sub HMCCURPCPROC_DecString ($$);
-sub HMCCURPCPROC_DecDouble ($$);
-sub HMCCURPCPROC_DecBase64 ($$);
-sub HMCCURPCPROC_DecArray ($$);
-sub HMCCURPCPROC_DecStruct ($$);
-sub HMCCURPCPROC_DecType ($$);
-sub HMCCURPCPROC_DecodeRequest ($);
-sub HMCCURPCPROC_DecodeResponse ($);
+sub HMCCURPCPROC_DecBinInteger ($$$);
+sub HMCCURPCPROC_DecBinBool ($$);
+sub HMCCURPCPROC_DecBinString ($$);
+sub HMCCURPCPROC_DecBinDouble ($$);
+sub HMCCURPCPROC_DecBinBase64 ($$);
+sub HMCCURPCPROC_DecBinArray ($$);
+sub HMCCURPCPROC_DecBinStruct ($$);
+sub HMCCURPCPROC_DecBinType ($$);
+sub HMCCURPCPROC_DecodeBinRequest ($);
+sub HMCCURPCPROC_DecodeBinResponse ($);
 
 
 ######################################################################
@@ -2155,6 +2160,65 @@ sub HMCCURPCPROC_SendRequest ($@)
 	return ($resp, $err);
 }
 
+sub HMCCURPCPROC_SendXMLRequest ($@)
+{
+    my ($hash, $ioHash, $ua, $method, @params) = @_;
+
+    # If user agent is not defined, create one
+    if (!defined($ua)) {
+        $ua = LWP::UserAgent->new (ssl_opts => {
+            SSL_verify_mode => SSL_VERIFY_NONE, verify_hostname => 0
+        });
+        return undef if (!defined($ua));
+
+        $ua->agent ("FHEM/0.1");
+        push @{$ua->requests_redirectable}, 'POST';	# Enable redirects for POST requests
+    }
+
+	# Build the URL
+	my $clurl = HMCCU_BuildURL ($ioHash, $port);
+	if (!defined($clurl)) {
+		HMCCU_Log ($hash, 2, "Can't get RPC client URL for port $port");
+		return (undef, "Can't get RPC client URL for port $port");
+	}	
+	HMCCU_Log ($hash, 4, "Send ASCII XML RPC request $method to $clurl");
+
+    # Resolve multicall request in single requests
+    if ($method eq 'system.multicall') {
+        my @response = ();
+        foreach my $r (@{$params[0]}) {
+            my $resp = SendRequest ($hash, $ioHash, $ua, $r->{methodName}, @{$r->{params}});
+            push @response, $resp;
+        }
+        return \@response;
+    }
+
+    # Create request
+    my %header = (
+        'Content-Type' => 'text/xml; charset=iso-8859-1'
+    );
+    my $xmlRequest = BuildRequest ($method, @params);
+    my $request = HTTP::Request::Common::POST ($clurl, %header, Content => $xmlRequest);
+
+    # Submit request and process response
+    my $response = $ua->request ($request);
+    if (defined($response) && $response->is_success && defined($response->content)) {   
+        my $content = $response->content;
+        if ($content ne '') {
+            my $dom = XML::LibXML->load_xml (string => $content);
+            HMCCURPCPROC_DecodeXML ($dom->getDocumentElement);
+        }
+        else {
+            print;
+            print Dumper($response);
+        }
+    }
+    else {
+        print "Request failed\n".Dumper($response);
+    }
+
+}
+
 ######################################################################
 # Send XML RPC request to CCU
 # Return value:
@@ -2162,7 +2226,7 @@ sub HMCCURPCPROC_SendRequest ($@)
 #   (undef, error) - Request failed with error
 ######################################################################
 
-sub HMCCURPCPROC_SendXMLRequest ($@)
+sub HMCCURPCPROC_SendXMLRequestOld ($@)
 {
 	my ($hash, $ioHash, $request, @param) = @_;
 	my $name = $hash->{NAME};
@@ -2222,7 +2286,7 @@ sub HMCCURPCPROC_SendBINRequest ($@)
 	my $ccuflags = AttrVal ($name, 'ccuflags', 'null');
 	my $verbose = GetVerbose ($name);
 
-	my $encreq = HMCCURPCPROC_EncodeRequest ($request, \@param);
+	my $encreq = HMCCURPCPROC_EncodeBinRequest ($request, \@param);
 	return (undef, 'Error while encoding binary request') if ($encreq eq '');
 	
 	if ($ccuflags =~ /logEvents/) {
@@ -2250,7 +2314,7 @@ sub HMCCURPCPROC_SendBINRequest ($@)
 				HMCCU_Log ($hash, 4, 'Binary RPC response');
 				HMCCURPCPROC_HexDump ($name, $encresp);
 			}
-			my ($response, $err) = HMCCURPCPROC_DecodeResponse ($encresp);
+			my ($response, $err) = HMCCURPCPROC_DecodeBinResponse ($encresp);
 			return (undef, 'Error while decoding binary response') if (!defined($err) || $err == 0);
 			return $response;
 		}
@@ -2314,17 +2378,17 @@ sub HMCCURPCPROC_ProcessRequest ($$)
 	}
 	
 	# Decode request
-	my ($method, $params) = HMCCURPCPROC_DecodeRequest ($request);
+	my ($method, $params) = HMCCURPCPROC_DecodeBinRequest ($request);
 	return if (!defined($method));
 	$method = lc($method);
 	HMCCU_Log ($name, 4, "Request method = $method");
 	
 	if ($method eq 'listmethods' || $method eq 'system.listmethods') {
-		$connection->send (HMCCURPCPROC_EncodeResponse (\@methodlist));
+		$connection->send (HMCCURPCPROC_EncodeBinResponse (\@methodlist));
 	}
 	elsif ($method eq 'listdevices') {
 		HMCCURPCPROC_ListDevicesCB ($server, $clkey);
-		$connection->send (HMCCURPCPROC_EncodeResponse (undef));
+		$connection->send (HMCCURPCPROC_EncodeBinResponse (undef));
 	}
 	elsif ($method eq 'system.multicall') {
 		return if (ref($params) ne 'ARRAY');
@@ -2975,7 +3039,7 @@ sub HMCCURPCPROC_XMLEncValue ($;$)
 # Encode integer (type = 1)
 ######################################################################
 
-sub HMCCURPCPROC_EncInteger ($)
+sub HMCCURPCPROC_EncBinInteger ($)
 {
 	my ($v) = @_;
 	
@@ -2986,7 +3050,7 @@ sub HMCCURPCPROC_EncInteger ($)
 # Encode bool (type = 2)
 ######################################################################
 
-sub HMCCURPCPROC_EncBool ($)
+sub HMCCURPCPROC_EncBinBool ($)
 {
 	my ($v) = @_;
 
@@ -3001,7 +3065,7 @@ sub HMCCURPCPROC_EncBool ($)
 # Input is string. Empty string = void
 ######################################################################
 
-sub HMCCURPCPROC_EncString ($)
+sub HMCCURPCPROC_EncBinString ($)
 {
 	my ($v) = @_;
 	
@@ -3013,7 +3077,7 @@ sub HMCCURPCPROC_EncString ($)
 # Encoded data will only contain the length and the name, no type.
 ######################################################################
 
-sub HMCCURPCPROC_EncName ($)
+sub HMCCURPCPROC_EncBinName ($)
 {
 	my ($v) = @_;
 
@@ -3024,7 +3088,7 @@ sub HMCCURPCPROC_EncName ($)
 # Encode double (type = 4)
 ######################################################################
 
-sub HMCCURPCPROC_EncDouble ($)
+sub HMCCURPCPROC_EncBinDouble ($)
 {
 	my ($v) = @_;
 
@@ -3044,7 +3108,7 @@ sub HMCCURPCPROC_EncDouble ($)
 # Input is base64 encoded string
 ######################################################################
 
-sub HMCCURPCPROC_EncBase64 ($)
+sub HMCCURPCPROC_EncBinBase64 ($)
 {
 	my ($v) = @_;
 	
@@ -3056,7 +3120,7 @@ sub HMCCURPCPROC_EncBase64 ($)
 # Input is array reference
 ######################################################################
 
-sub HMCCURPCPROC_EncArray ($)
+sub HMCCURPCPROC_EncBinArray ($)
 {
 	my ($a) = @_;
 	
@@ -3079,7 +3143,7 @@ sub HMCCURPCPROC_EncArray ($)
 # Input is hash reference. 
 ######################################################################
 
-sub HMCCURPCPROC_EncStruct ($)
+sub HMCCURPCPROC_EncBinStruct ($)
 {
 	my ($h) = @_;
 	
@@ -3089,7 +3153,7 @@ sub HMCCURPCPROC_EncStruct ($)
 	if (defined($h)) {	
 		return '' if (ref($h) ne 'HASH');
 		foreach my $k (keys %{$h}) {
-			my $n = HMCCURPCPROC_EncName ($k);
+			my $n = HMCCURPCPROC_EncBinName ($k);
 			if ($n ne '') {
 				$r .= $n.HMCCURPCPROC_EncType ($h->{$k});
 				$s++;
@@ -3101,7 +3165,7 @@ sub HMCCURPCPROC_EncStruct ($)
 }
 
 ######################################################################
-# Encode any type
+# Encode any binary XML type
 # Input is value and optionally type.
 # Value can be in format Value:Type
 # Types are: STRING, INTEGER, BOOL, FLOAT, DOUBLE, BASE64
@@ -3125,13 +3189,13 @@ sub HMCCURPCPROC_EncType ($;$)
 
 	$t //= HMCCURPCPROC_DetType ($v);
 	
-	if ($t == $BINRPC_INTEGER)   { return HMCCURPCPROC_EncInteger ($v); }
-	elsif ($t == $BINRPC_BOOL)   { return HMCCURPCPROC_EncBool ($v); }
-	elsif ($t == $BINRPC_STRING) { return HMCCURPCPROC_EncString ($v); }
-	elsif ($t == $BINRPC_DOUBLE) { return HMCCURPCPROC_EncDouble ($v); }
-	elsif ($t == $BINRPC_BASE64) { return HMCCURPCPROC_EncBase64 ($v); }
-	elsif ($t == $BINRPC_ARRAY)  { return HMCCURPCPROC_EncArray ($v); }
-	elsif ($t == $BINRPC_STRUCT) { return HMCCURPCPROC_EncStruct ($v); }
+	if ($t == $BINRPC_INTEGER)   { return HMCCURPCPROC_EncBinInteger ($v); }
+	elsif ($t == $BINRPC_BOOL)   { return HMCCURPCPROC_EncBinBool ($v); }
+	elsif ($t == $BINRPC_STRING) { return HMCCURPCPROC_EncBinString ($v); }
+	elsif ($t == $BINRPC_DOUBLE) { return HMCCURPCPROC_EncBinDouble ($v); }
+	elsif ($t == $BINRPC_BASE64) { return HMCCURPCPROC_EncBinBase64 ($v); }
+	elsif ($t == $BINRPC_ARRAY)  { return HMCCURPCPROC_EncBinArray ($v); }
+	elsif ($t == $BINRPC_STRUCT) { return HMCCURPCPROC_EncBinStruct ($v); }
 
 	return '';
 }
@@ -3173,14 +3237,14 @@ sub HMCCURPCPROC_DetType ($)
 #  16+n    p  Encoded parameters
 ######################################################################
 
-sub HMCCURPCPROC_EncodeRequest ($$)
+sub HMCCURPCPROC_EncodeBinRequest ($$)
 {
 	my ($method, $args) = @_;
 	
 	return '' if (!defined($method) || $method eq '');
 
 	# Encode method
-	my $methodEnc = HMCCURPCPROC_EncName ($method);
+	my $methodEnc = HMCCURPCPROC_EncBinName ($method);
 	
 	# Encode parameters
 	my $re = ':('.join('|', keys(%BINRPC_TYPE_MAPPING)).')';
@@ -3201,11 +3265,11 @@ sub HMCCURPCPROC_EncodeRequest ($$)
 }
 
 ######################################################################
-# Encode RPC response
+# Encode binary RPC response
 # Input is type and value
 ######################################################################
 
-sub HMCCURPCPROC_EncodeResponse ($;$)
+sub HMCCURPCPROC_EncodeBinResponse ($;$)
 {
 	my ($v, $t) = @_;
 
@@ -3224,11 +3288,11 @@ sub HMCCURPCPROC_EncodeResponse ($;$)
 ######################################################################
 
 ######################################################################
-# Decode integer (type = 1)
+# Decode binary integer (type = 1)
 # Return (value, packetsize) or (undef, undef)
 ######################################################################
 
-sub HMCCURPCPROC_DecInteger ($$$)
+sub HMCCURPCPROC_DecBinInteger ($$$)
 {
 	my ($d, $i, $u) = @_;
 
@@ -3236,11 +3300,11 @@ sub HMCCURPCPROC_DecInteger ($$$)
 }
 
 ######################################################################
-# Decode bool (type = 2)
+# Decode binary bool (type = 2)
 # Return (value, packetsize) or (undef, undef)
 ######################################################################
 
-sub HMCCURPCPROC_DecBool ($$)
+sub HMCCURPCPROC_DecBinBool ($$)
 {
 	my ($d, $i) = @_;
 
@@ -3248,16 +3312,16 @@ sub HMCCURPCPROC_DecBool ($$)
 }
 
 ######################################################################
-# Decode string or void (type = 3)
+# Decode binary string or void (type = 3)
 # Return (string, packet size) or (undef, undef)
 # Return ('', 4) for special type 'void'
 ######################################################################
 
-sub HMCCURPCPROC_DecString ($$)
+sub HMCCURPCPROC_DecBinString ($$)
 {
 	my ($d, $i) = @_;
 
-	my ($s, $o) = HMCCURPCPROC_DecInteger ($d, $i, 'N');
+	my ($s, $o) = HMCCURPCPROC_DecBinInteger ($d, $i, 'N');
 	if (defined($s) && $i+$s+4 <= length ($d)) {
 		return $s > 0 ? (substr ($d, $i+4, $s), $s+4) : ('', 4);
 	}
@@ -3266,11 +3330,11 @@ sub HMCCURPCPROC_DecString ($$)
 }
 
 ######################################################################
-# Decode double (type = 4)
+# Decode binary double (type = 4)
 # Return (value, packetsize) or (undef, undef)
 ######################################################################
 
-sub HMCCURPCPROC_DecDouble ($$)
+sub HMCCURPCPROC_DecBinDouble ($$)
 {
 	my ($d, $i) = @_;
 
@@ -3289,11 +3353,11 @@ sub HMCCURPCPROC_DecDouble ($$)
 # Return (string, packetsize) or (undef, undef)
 ######################################################################
 
-sub HMCCURPCPROC_DecBase64 ($$)
+sub HMCCURPCPROC_DecBinBase64 ($$)
 {
 	my ($d, $i) = @_;
 	
-	return HMCCURPCPROC_DecString ($d, $i);
+	return HMCCURPCPROC_DecBinString ($d, $i);
 }
 
 ######################################################################
@@ -3301,16 +3365,16 @@ sub HMCCURPCPROC_DecBase64 ($$)
 # Return (arrayref, packetsize) or (undef, undef)
 ######################################################################
 
-sub HMCCURPCPROC_DecArray ($$)
+sub HMCCURPCPROC_DecBinArray ($$)
 {
 	my ($d, $i) = @_;
 	my @r = ();
 
-	my ($s, $x) = HMCCURPCPROC_DecInteger ($d, $i, 'N');
+	my ($s, $x) = HMCCURPCPROC_DecBinInteger ($d, $i, 'N');
 	if (defined($s)) {
 		my $j = $x;
 		for (my $n=0; $n<$s; $n++) {
-			my ($v, $o) = HMCCURPCPROC_DecType ($d, $i+$j);
+			my ($v, $o) = HMCCURPCPROC_DecBinType ($d, $i+$j);
 			return (undef, undef) if (!defined($o));
 			push (@r, $v);
 			$j += $o;
@@ -3326,18 +3390,18 @@ sub HMCCURPCPROC_DecArray ($$)
 # Return (hashref, packetsize) or (undef, undef)
 ######################################################################
 
-sub HMCCURPCPROC_DecStruct ($$)
+sub HMCCURPCPROC_DecBinStruct ($$)
 {
 	my ($d, $i) = @_;
 	my %r;
 	
-	my ($s, $x) = HMCCURPCPROC_DecInteger ($d, $i, 'N');
+	my ($s, $x) = HMCCURPCPROC_DecBinInteger ($d, $i, 'N');
 	if (defined($s)) {
 		my $j = $x;
 		for (my $n=0; $n<$s; $n++) {
-			my ($k, $o1) = HMCCURPCPROC_DecString ($d, $i+$j);
+			my ($k, $o1) = HMCCURPCPROC_DecBinString ($d, $i+$j);
 			return (undef, undef) if (!defined($o1));
-			my ($v, $o2) = HMCCURPCPROC_DecType ($d, $i+$j+$o1);
+			my ($v, $o2) = HMCCURPCPROC_DecBinType ($d, $i+$j+$o1);
 			return (undef, undef) if (!defined($o2));
 			$r{$k} = $v;
 			$j += $o1+$o2;
@@ -3354,7 +3418,7 @@ sub HMCCURPCPROC_DecStruct ($$)
 # element could be a scalar, array ref or hash ref.
 ######################################################################
 
-sub HMCCURPCPROC_DecType ($$)
+sub HMCCURPCPROC_DecBinType ($$)
 {
 	my ($d, $i) = @_;
 	
@@ -3367,27 +3431,27 @@ sub HMCCURPCPROC_DecType ($$)
 	
 	if ($t == $BINRPC_INTEGER) {
 		# Integer
-		@r = HMCCURPCPROC_DecInteger ($d, $i, 'N');
+		@r = HMCCURPCPROC_DecBinInteger ($d, $i, 'N');
 	}
 	elsif ($t == $BINRPC_BOOL) {
 		# Bool
-		@r = HMCCURPCPROC_DecBool ($d, $i);
+		@r = HMCCURPCPROC_DecBinBool ($d, $i);
 	}
 	elsif ($t == $BINRPC_STRING || $t == $BINRPC_BASE64) {
 		# String / Base64
-		@r = HMCCURPCPROC_DecString ($d, $i);
+		@r = HMCCURPCPROC_DecBinString ($d, $i);
 	}
 	elsif ($t == $BINRPC_DOUBLE) {
 		# Double
-		@r = HMCCURPCPROC_DecDouble ($d, $i);
+		@r = HMCCURPCPROC_DecBinDouble ($d, $i);
 	}
 	elsif ($t == $BINRPC_ARRAY) {
 		# Array
-		@r = HMCCURPCPROC_DecArray ($d, $i);
+		@r = HMCCURPCPROC_DecBinArray ($d, $i);
 	}
 	elsif ($t == $BINRPC_STRUCT) {
 		# Struct
-		@r = HMCCURPCPROC_DecStruct ($d, $i);
+		@r = HMCCURPCPROC_DecBinStruct ($d, $i);
 	}
 	
 	$r[1] += 4;
@@ -3400,7 +3464,7 @@ sub HMCCURPCPROC_DecType ($$)
 # Return method, arguments. Arguments are returned as array.
 ######################################################################
 
-sub HMCCURPCPROC_DecodeRequest ($)
+sub HMCCURPCPROC_DecodeBinRequest ($)
 {
 	my ($data) = @_;
 
@@ -3410,7 +3474,7 @@ sub HMCCURPCPROC_DecodeRequest ($)
 	return (undef, undef) if (length ($data) < 8);
 	
 	# Decode method
-	my ($method, $o) = HMCCURPCPROC_DecString ($data, $i);
+	my ($method, $o) = HMCCURPCPROC_DecBinString ($data, $i);
 	return (undef, undef) if (!defined ($method));
 
 	$i += $o;
@@ -3418,7 +3482,7 @@ sub HMCCURPCPROC_DecodeRequest ($)
 	$i += 4;
 
 	for (my $n=0; $n<$c; $n++) {
-		my ($d, $s) = HMCCURPCPROC_DecType ($data, $i);
+		my ($d, $s) = HMCCURPCPROC_DecBinType ($data, $i);
 		return (undef, undef) if (!defined($d)|| !defined($s));
 		push (@r, $d);
 		$i += $s;
@@ -3433,7 +3497,7 @@ sub HMCCURPCPROC_DecodeRequest ($)
 # type: 1=ok, 0=error
 ######################################################################
 
-sub HMCCURPCPROC_DecodeResponse ($)
+sub HMCCURPCPROC_DecodeBinResponse ($)
 {
 	my ($data) = @_;
 	
@@ -3442,12 +3506,12 @@ sub HMCCURPCPROC_DecodeResponse ($)
 	my $id = unpack ('N', substr ($data, 0, 4));
 	if ($id == $BINRPC_RESPONSE) {
 		# Data
-		my ($result, $offset) = HMCCURPCPROC_DecType ($data, 8);
+		my ($result, $offset) = HMCCURPCPROC_DecBinType ($data, 8);
 		return ($result, defined($result) ? 1 : 0);
 	}
 	elsif ($id == $BINRPC_ERROR) {
 		# Error
-		my ($result, $offset) = HMCCURPCPROC_DecType ($data, 8);
+		my ($result, $offset) = HMCCURPCPROC_DecBinType ($data, 8);
 		return ($result, 0);
 	}
 #	Response with header not supported
