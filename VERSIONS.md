@@ -1,6 +1,13 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 222611615</h2>
+<ul>
+<li>#225 - Added support for special datapoint values</li>
+<li>#221 - Toggle command was not working for blinds</li>
+<li>#216 - Remove functions DetectSCDev, DetectSCChn</li>
+</ul>
+
 <h2>Version 5.0 220431743</h2>
 
 <ul>
