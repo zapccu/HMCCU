@@ -1,6 +1,11 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 222751518</h2>
+<ul>
+<li>#227 - Set commands on datapoint LEVEL not working (incl. set pct)</li>
+</ul>
+
 <h2>Version 5.0 222611615</h2>
 <ul>
 <li>#225 - Added support for special datapoint values</li>
