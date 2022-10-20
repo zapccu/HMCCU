@@ -1,6 +1,13 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 222930908</h2>
+<ul>
+<li>#228 - Remove current state/control datapoint from CCU device info</li>
+<li>#229 - Datapoint readings replaced for motion sensors</li>
+<li>#230 - Add syntax check for HMCCU attribute ccuGetVars</li>
+</ul>
+
 <h2>Version 5.0 222751518</h2>
 <ul>
 <li>#227 - Set commands on datapoint LEVEL not working (incl. set pct)</li>
