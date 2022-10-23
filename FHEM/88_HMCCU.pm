@@ -8068,8 +8068,12 @@ sub HMCCU_SetSCDatapoints ($$;$$$)
 		HMCCU_Log ($clHash, 2, "f=$f chn not defined in $d $v".stacktraceAsString(undef)) if (!defined($chn));
 		HMCCU_Log ($clHash, 2, "f=$f dpt not defined in $d $v".stacktraceAsString(undef)) if (!defined($dpt) && !($f & 5));
 
-		return 0 if ($init_done && defined($chn) && $chn ne '' && defined($dpt) && $dpt ne '' &&
-			!HMCCU_IsValidParameter ($clHash, HMCCU_GetChannelAddr ($clHash, $chn), 'VALUES', $dpt, $f & 3 ? 5 : 2));
+		if ($init_done && defined($chn) && $chn ne '' && defined($dpt) && $dpt ne '' &&
+			!HMCCU_IsValidParameter ($clHash, HMCCU_GetChannelAddr ($clHash, $chn), 'VALUES', $dpt, $f & 3 ? 5 : 2))
+		{
+			HMCCU_Log ($clHash, 2, "Invalid datapoint $chn.$dpt for parameter $d");
+			return 0;	
+		}
 
 		$clHash->{ccurolestate} = $r if ($r ne '' && $f & 3);
 		$clHash->{ccurolectrl} = $r if ($r ne '' && $f & 12);
