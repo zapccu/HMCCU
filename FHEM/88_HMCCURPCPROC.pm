@@ -39,7 +39,7 @@ use SetExtensions;
 ######################################################################
 
 # HMCCURPC version
-my $HMCCURPCPROC_VERSION = '5.0 222930908';
+my $HMCCURPCPROC_VERSION = '5.0 231852105';
 
 # Maximum number of events processed per call of Read()
 my $HMCCURPCPROC_MAX_EVENTS = 100;
@@ -461,6 +461,7 @@ sub HMCCURPCPROC_InitDevice ($$)
 	# Set some attributes
 	if ($init_done) {
 		$attr{$name}{stateFormat} = 'rpcstate/state';
+		$attr{$name}{room}        = 'Homematic';
 		$attr{$name}{verbose} = 2;
 	}
 	
