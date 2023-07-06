@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 231852105';
+my $HMCCU_VERSION = '5.0 231871820';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -4816,7 +4816,7 @@ sub HMCCU_UpdateParamsetReadings ($$$;$)
 					HMCCU_UpdateInternalValues ($clHash, $chKey, $ps, 'NVAL', $sv);
 					$fv = HMCCU_FormatReadingValue ($clHash, $sv, $p);
 					$cv = !HMCCU_IsFlag($ioName,'noAutoSubstitute') && !HMCCU_IsFlag($clName,'noAutoSubstitute') ?
-						$HMCCU_Substitute ($fv, $clHash, 0, $c, $p, $chnType, $devDesc) : $fv;
+						HMCCU_Substitute ($fv, $clHash, 0, $c, $p, $chnType, $devDesc) : $fv;
 					HMCCU_UpdateInternalValues ($clHash, $chKey, $ps, 'SVAL', $cv);
 					push @chKeys, $chKey;
 
