@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 231871831';
+my $HMCCU_VERSION = '5.0 231871837';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -3961,7 +3961,7 @@ sub HMCCU_GetDeviceConfig ($)
 				if ($da ne 'HmIP-RCV-1' && $da ne 'BidCoS-RF') {
 					push @ccuSuppDevList, $devName;
 					push @ccuSuppTypes, $devModel;
-					HMCCU_Log ($ioHash, 3, "Device $da $devName detected");
+					HMCCU_Log ($ioHash, 4, "Device $da $devName detected");
 				}
 				else {
 					HMCCU_Log ($ioHash, 2, "Device $da $devName ignored");
