@@ -3,6 +3,11 @@ Module for FHEM - Homematic CCU Integration
 
 Version 5.0
 
+<h2>Support</h2>
+If you like this module and would like to support development I would appreciate a donation:
+
+<a href="https://www.paypal.com/donate/?hosted_button_id=W87R5VAFLE6M6"><img src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif"></a>
+
 <h2>Installation</h2>
 Warning! This is a beta version of the HMCCU modules. Please backup your FHEM installation before you install it.
 
