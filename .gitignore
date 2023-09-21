@@ -6,3 +6,4 @@ svnupdate.sh
 Release_51.txt
 DetectDevice.pl
 .DS_Store
+.gitignore
