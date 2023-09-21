@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 231871837';
+my $HMCCU_VERSION = '5.0 232641921';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -391,7 +391,7 @@ sub HMCCU_Initialize ($)
 		' ccudef-stripnumber ccudef-attributes ccuReadingPrefix'.
 		' ccuflags:multiple-strict,procrpc,dptnocheck,logCommand,noagg,nohmstate,updGroupMembers,'.
 		'logEvents,noEvents,noInitialUpdate,noReadings,nonBlocking,reconnect,logPong,trace,logEnhanced,'.
-		'noAutoDetect,noAutoSubstitute,unknownDeviceRoles',
+		'noAutoDetect,noAutoSubstitute,unknownDeviceRoles'.
 		' ccuReqTimeout ccuGetVars rpcPingCCU rpcinterfaces ccuAdminURLs'.
 		' rpcserver:on,off rpcserveraddr rpcserverport rpctimeout rpcevtimeout substitute'.
 		' ccuget:Value,State '.
@@ -486,6 +486,11 @@ sub HMCCU_Define ($$$)
 	$hash->{hmccu}{rpcports} = undef;
 	$hash->{hmccu}{postInit} = 0;
 
+	# Check if authentication is active
+	my ($erruser, $encuser) = getKeyValue ($name.'_username');
+	my ($errpass, $encpass) = getKeyValue ($name.'_password');
+	$hash->{authentication} = (defined($encuser) && defined($encpass)) ? 'on' : 'off';
+
 	HMCCU_Log ($hash, 1, "Initialized version $HMCCU_VERSION");
 	
 	my $rc = 0;
@@ -547,11 +552,7 @@ sub HMCCU_InitDevice ($)
 		$attributes =~ s/rpcinterfaces/$rpcinterfaces/;
 		setDevAttrList ($name, $attributes);
 
-		HMCCU_Log ($hash, 1, [
-			"Read $devcnt devices with $chncnt channels from CCU $host",
-			"Read $prgcount programs from CCU $host",
-			"Read $gcount virtual groups from CCU $host"
-		]);
+		HMCCU_Log ($hash, 1, "Read $devcnt devices with $chncnt channels, $prgcount programs, $gcount virtual groups from CCU $host");
 		
 		# Interactive device definition or delayed initialization
 		if ($init_done && !HMCCU_IsDelayedInit ($hash)) {
@@ -1507,6 +1508,7 @@ sub HMCCU_Set ($@)
 		if (!defined($username)) {
 			setKeyValue ($name."_username", undef);
 			setKeyValue ($name."_password", undef);
+			$hash->{authentication} = 'off';
 			return 'Credentials for CCU authentication deleted';
 		}		
 		return HMCCU_SetError ($hash, $usage) if (!defined($password));
@@ -1519,8 +1521,10 @@ sub HMCCU_Set ($@)
 		return HMCCU_SetError ($hash, "Can't store credentials. $err") if (defined ($err));
 		$err = setKeyValue ($name."_password", $encpass);
 		return HMCCU_SetError ($hash, "Can't store credentials. $err") if (defined ($err));
+
+		$hash->{authentication} = 'on';
 		
-		return 'Credentials for CCU authentication stored';			
+		return 'Credentials for CCU authentication stored';		
 	}
 	elsif ($opt eq 'clear') {
 		my $rnexp = shift @$a;
@@ -2915,6 +2919,12 @@ sub HMCCU_Substitute ($$$$$;$$)
 	my $ioHash;
 	my $rc = 0;
 	my $newvalue;
+	my $noAutoSubstitute = 0;
+
+	if ($mode == -1) {
+		$mode = 0;
+		$noAutoSubstitute = 1;
+	}
 	
 	if (defined($hashOrRule)) {
 		if (ref($hashOrRule) eq 'HASH') {
@@ -2972,6 +2982,7 @@ sub HMCCU_Substitute ($$$$$;$$)
 
 	# Original value not modified by rules. Use default conversion depending on type/role
 	# Default conversion can be overriden by attribute ccudef-substitute in I/O device
+	return $value if ($noAutoSubstitute);
 
 	# Substitute by rules defined in CONVERSIONS table		
 	if (!defined($type) || $type eq '') {
@@ -2983,7 +2994,7 @@ sub HMCCU_Substitute ($$$$$;$$)
 	elsif (exists($HMCCU_CONVERSIONS->{DEFAULT}{$dpt}{$value})) {
 		return $HMCCU_CONVERSIONS->{DEFAULT}{$dpt}{$value};
 	}
-	
+
 	# Substitute enumerations and default parameter type conversions
 	if (defined($devDesc) && defined($ioHash)) {
 		my $paramDef = HMCCU_GetParamDef ($ioHash, $devDesc, 'VALUES', $dpt);
@@ -3215,7 +3226,7 @@ sub HMCCU_UpdateDeviceTable ($$)
 	my $devcount = 0;
 	my $chncount = 0;
 
-	HMCCU_Log ($hash, 2, "Updating device table");
+	HMCCU_Log ($hash, 3, "Updating device table");
 	
 	# Update internal device table
 	foreach my $da (keys %{$devices}) {
@@ -3917,22 +3928,24 @@ sub HMCCU_GetDeviceConfig ($)
 	my $c = 0;
 	
 	my $interfaces = HMCCU_GetRPCInterfaceList ($ioHash, 0);
-	foreach my $iface (keys %$interfaces) {
+	my @ifList = keys %$interfaces;
+	HMCCU_Log ($ioHash, 2, "Reading device configuration for interfaces ".join(',', @ifList));
+	foreach my $iface (@ifList) {
 		my ($rpcdev, $save) = HMCCU_GetRPCDevice ($ioHash, 1, $iface);
 		if ($rpcdev ne '') {
 			my $rpcHash = $defs{$rpcdev};
 			HMCCURPCPROC_Connect ($rpcHash, $ioHash);
-			HMCCU_Log ($ioHash, 2, "Reading Device Descriptions for interface $iface");
+			HMCCU_Log ($ioHash, 5, "Reading Device Descriptions for interface $iface");
 			$c = HMCCURPCPROC_GetDeviceDesc ($rpcHash);
-			HMCCU_Log ($ioHash, 2, "Read $c Device Descriptions for interface $iface");
+			HMCCU_Log ($ioHash, 5, "Read $c Device Descriptions for interface $iface");
 			$cDev += $c;
-			HMCCU_Log ($ioHash, 2, "Reading Paramset Descriptions for interface $iface");
+			HMCCU_Log ($ioHash, 5, "Reading Paramset Descriptions for interface $iface");
 			$c = HMCCURPCPROC_GetParamsetDesc ($rpcHash);
-			HMCCU_Log ($ioHash, 2, "Read $c Paramset Descriptions for interface $iface");
+			HMCCU_Log ($ioHash, 5, "Read $c Paramset Descriptions for interface $iface");
 			$cPar += $c;
-			HMCCU_Log ($ioHash, 2, "Reading Peer Descriptions for interface $iface");
+			HMCCU_Log ($ioHash, 5, "Reading Peer Descriptions for interface $iface");
 			$c = HMCCURPCPROC_GetPeers ($rpcHash);
-			HMCCU_Log ($ioHash, 2, "Read $c Peer Descriptions for interface $iface");
+			HMCCU_Log ($ioHash, 5, "Read $c Peer Descriptions for interface $iface");
 			$cLnk += $c;
 			HMCCURPCPROC_Disconnect ($rpcHash, $ioHash);
 		}
@@ -3940,13 +3953,15 @@ sub HMCCU_GetDeviceConfig ($)
 			HMCCU_Log ($ioHash, 2, "No RPC device found for interface $iface. Can't read device config.");
 		}
 	}
+	HMCCU_Log ($ioHash, 2, "Read descriptions of $cDev devices, $cPar paramsets, $cLnk links");
 
 	my @ccuDevList = ();
 	my @ccuSuppDevList = ();
 	my @ccuSuppTypes = ();
 	my @ccuNotSuppTypes = ();
-	foreach my $di (sort keys %{$ioHash->{hmccu}{device}}) {
-		HMCCU_Log ($ioHash, 2, "Detecting devices of interface $di");
+	@ifList = sort keys %{$ioHash->{hmccu}{device}};
+	HMCCU_Log ($ioHash, 2, "Detecting devices of interfaces ".join(',', @ifList));
+	foreach my $di (@ifList) {
 		foreach my $da (sort keys %{$ioHash->{hmccu}{device}{$di}}) {
 			next if ($ioHash->{hmccu}{device}{$di}{$da}{_addtype} ne 'dev');
 			my $devName = $ioHash->{hmccu}{device}{$di}{$da}{_name};
@@ -3961,15 +3976,15 @@ sub HMCCU_GetDeviceConfig ($)
 				if ($da ne 'HmIP-RCV-1' && $da ne 'BidCoS-RF') {
 					push @ccuSuppDevList, $devName;
 					push @ccuSuppTypes, $devModel;
-					HMCCU_Log ($ioHash, 4, "Device $da $devName detected");
+					HMCCU_Log ($ioHash, 5, "Device $da $devName detected");
 				}
 				else {
-					HMCCU_Log ($ioHash, 2, "Device $da $devName ignored");
+					HMCCU_Log ($ioHash, 5, "Device $da $devName ignored");
 				}
 			}
 			else {
 				push @ccuNotSuppTypes, $devModel;
-				HMCCU_Log ($ioHash, 2, "Device $da $devName not detected");
+				HMCCU_Log ($ioHash, 5, "Device $da $devName not detected");
 			}
 		}
 	}
@@ -4762,7 +4777,7 @@ sub HMCCU_UpdateParamsetReadings ($$$;$)
 	my $vg = ($clHash->{ccuif} eq 'VirtualDevices' && exists($clHash->{ccugroup}) && $clHash->{ccugroup} ne '') ? 1 : 0;
 
 	# Get client device attributes
- 	my $clFlags = HMCCU_GetFlags ($clName);
+	my $substMode = HMCCU_IsFlag($ioName,'noAutoSubstitute') || HMCCU_IsFlag($clName,'noAutoSubstitute') ? -1 : 0;
 	my $clRF = HMCCU_GetAttrReadingFormat ($clHash, $ioHash);
 	my $peer = AttrVal ($clName, 'peer', 'null');
  	my $clInt = $clHash->{ccuif};
@@ -4815,8 +4830,7 @@ sub HMCCU_UpdateParamsetReadings ($$$;$)
 					$sv = HMCCU_ScaleValue ($clHash, $c, $p, $v, 0, $ps);
 					HMCCU_UpdateInternalValues ($clHash, $chKey, $ps, 'NVAL', $sv);
 					$fv = HMCCU_FormatReadingValue ($clHash, $sv, $p);
-					$cv = !HMCCU_IsFlag($ioName,'noAutoSubstitute') && !HMCCU_IsFlag($clName,'noAutoSubstitute') ?
-						HMCCU_Substitute ($fv, $clHash, 0, $c, $p, $chnType, $devDesc) : $fv;
+					$cv = HMCCU_Substitute ($fv, $clHash, $substMode, $c, $p, $chnType, $devDesc);
 					HMCCU_UpdateInternalValues ($clHash, $chKey, $ps, 'SVAL', $cv);
 					push @chKeys, $chKey;
 
@@ -5684,7 +5698,7 @@ sub HMCCU_GetDeviceList ($)
 	$hash->{ccustate} = 'active';
 	
 	# Delete old entries
-	HMCCU_Log ($hash, 2, "Deleting old CCU configuration data");
+	HMCCU_Log ($hash, 5, "Deleting old CCU configuration data");
 	%{$hash->{hmccu}{dev}} = ();
 	%{$hash->{hmccu}{adr}} = ();
 	%{$hash->{hmccu}{interfaces}} = ();
@@ -8393,7 +8407,7 @@ sub HMCCU_DetectDevice ($$$)
 		$roleCnt = HMCCU_UnknownDeviceRoles ($ioHash, $address, $iface, \@stateRoles, \@controlRoles);
 	}
 	if ($roleCnt == 0) {
-		HMCCU_Log ($ioHash, 3, "No roles detected for device $address");
+		HMCCU_Log ($ioHash, 5, "No roles detected for device $address");
 		return undef;
 	}
 
@@ -8891,13 +8905,14 @@ sub HMCCU_HMCommand ($$$)
 	
 	my $io_hash = HMCCU_GetHash ($cl_hash);
 	my $ccureqtimeout = AttrVal ($io_hash->{NAME}, 'ccuReqTimeout', $HMCCU_TIMEOUT_REQUEST);
-	my $url = HMCCU_BuildURL ($io_hash, 'rega');
+	my ($url, $auth) = HMCCU_BuildURL ($io_hash, 'rega');
 	my $value;
 
 	HMCCU_Trace ($cl_hash, 2, "URL=$url, cmd=$cmd");
 
 	my $param = { url => $url, timeout => $ccureqtimeout, data => $cmd, method => "POST" };
 	$param->{sslargs} = { SSL_verify_mode => 0 };
+	$param->{header} = "Authorization: Basic $auth" if ($auth ne '');
 	my ($err, $response) = HttpUtils_BlockingGet ($param);
 	
 	if ($err eq '') {
@@ -8929,7 +8944,7 @@ sub HMCCU_HMCommandNB ($$$)
 
 	my $ioHash = HMCCU_GetHash ($clHash);
 	my $ccureqtimeout = AttrVal ($ioHash->{NAME}, 'ccuReqTimeout', $HMCCU_TIMEOUT_REQUEST);
-	my $url = HMCCU_BuildURL ($ioHash, 'rega');
+	my ($url, $auth) = HMCCU_BuildURL ($ioHash, 'rega');
 
 	HMCCU_Trace ($ioHash, 2, "Executing command $cmd non blocking");
 	HMCCU_Trace ($clHash, 2, "URL=$url");
@@ -8937,6 +8952,7 @@ sub HMCCU_HMCommandNB ($$$)
 	my $param = { url => $url, timeout => $ccureqtimeout, data => $cmd, method => "POST",
 		callback => \&HMCCU_HMScriptCB, cbFunc => $cbFunc, devhash => $clHash, ioHash => $ioHash };
 	$param->{sslargs} = { SSL_verify_mode => 0 };
+	$param->{header} = "Authorization: Basic $auth" if ($auth ne '');
 	HttpUtils_NonblockingGet ($param);
 }
 
@@ -9021,7 +9037,9 @@ sub HMCCU_HMScriptExt ($$;$$$)
 	HMCCU_Trace ($hash, 2, "Code=$code");
 	
 	# Execute script on CCU
-	my $url = HMCCU_BuildURL ($hash, 'rega');
+	my ($url, $auth) = HMCCU_BuildURL ($hash, 'rega');
+	my %header = ('Content-Type' => 'text/plain');
+	$header{'Authorization'} = "Basic $auth" if ($auth ne '');
 	if (defined($cbFunc)) {
 		# Non blocking
 		HMCCU_Trace ($hash, 2, "Executing $hmscript non blocking");
@@ -9031,6 +9049,7 @@ sub HMCCU_HMScriptExt ($$;$$$)
 			foreach my $p (keys %{$cbParam}) { $param->{$p} = $cbParam->{$p}; }
 		}
 		$param->{sslargs} = { SSL_verify_mode => 0 };
+		$param->{header} = \%header;
 		HttpUtils_NonblockingGet ($param);
 		return '';
 	}
@@ -9038,8 +9057,9 @@ sub HMCCU_HMScriptExt ($$;$$$)
 	# Blocking request
 	my $param = { url => $url, timeout => $ccureqtimeout, data => $code, method => "POST" };
 	$param->{sslargs} = { SSL_verify_mode => 0 };
+	$param->{header} = \%header;
 	my ($err, $response) = HttpUtils_BlockingGet ($param);
-	HMCCU_Trace ($hash, 2, "err=$err\nresponse=$response");
+	HMCCU_Trace ($hash, 2, "err=$err\nresponse=".($response // ''));
 	if ($err eq '') {
 		return HMCCU_FormatScriptResponse ($response);
 	}
@@ -9349,11 +9369,7 @@ sub HMCCU_ScaleValue ($$$$$;$)
 	my $name = $hash->{NAME};
 	my $ioHash = HMCCU_GetHash ($hash);
 
-	if (!defined($value) || !HMCCU_IsFltNum($value)) {
-		my $logValue = $value // 'undef';
-		HMCCU_Log ($hash, 5, "Value $logValue is not numeric. chn=$chnno, dpt=$dpt");
-		return $value;
-	}
+	return $value if (!defined($value) || !HMCCU_IsFltNum($value));
 
 	my $boundsChecking = (
 		$mode == 2 ||
@@ -10052,27 +10068,30 @@ sub HMCCU_MinMax ($$$)
 # Build ReGa or RPC client URL
 # Parameter backend specifies type of URL, 'rega' or name or port of
 # RPC interface.
-# Return empty string on error.
+# Return array in format (url, authorization)
+# Return empty strings on error.
 ######################################################################
 
 sub HMCCU_BuildURL ($$)
 {
 	my ($hash, $backend) = @_;
 	my $name = $hash->{NAME};
-	
+
 	my $url = '';
+	
 	my $username = '';
 	my $password = '';
+	my $authorization = '';
 	my ($erruser, $encuser) = getKeyValue ($name.'_username');
 	my ($errpass, $encpass) = getKeyValue ($name.'_password');	
 	if (!defined($erruser) && !defined($errpass) && defined($encuser) && defined($encpass)) {
 		$username = HMCCU_Decrypt ($encuser);
 		$password = HMCCU_Decrypt ($encpass);
+		$authorization = encode_base64 ("$username:$password", '');
 	}
-	my $auth = ($username ne '' && $password ne '') ? "$username:$password".'@' : '';
 
 	if ($backend eq 'rega') {
-		$url = $hash->{prot}."://$auth".$hash->{host}.':'.
+		$url = $hash->{prot}."://".$hash->{host}.':'.
 			$HMCCU_REGA_PORT{$hash->{prot}}.'/tclrega.exe';
 	}
 	else {
@@ -10080,7 +10099,7 @@ sub HMCCU_BuildURL ($$)
 		if (defined($url)) {
 			if (exists($HMCCU_RPC_SSL{$backend})) {
 				my $p = $hash->{prot} eq 'https' ? '4' : '';
- 				$url =~ s/^http:\/\//$hash->{prot}:\/\/$auth/;
+ 				$url =~ s/^http:\/\//$hash->{prot}:\/\//;
 				$url =~ s/:([0-9]+)/:$p$1/;
 			}
 		}
@@ -10089,7 +10108,10 @@ sub HMCCU_BuildURL ($$)
 		}
 	}
 	
-	return $url;
+	HMCCU_Trace ($hash, 2, "Build URL = " . $url);
+	HMCCU_Trace ($hash, 2, "Authorization = " . $authorization);
+
+	return ($url, $authorization);
 }
 
 ######################################################################
@@ -10521,7 +10543,7 @@ sub HMCCU_GetDutyCycle ($)
 	
 	foreach my $port (values %$interfaces) {
 		next if ($port != 2001 && $port != 2010);
-		my $url = HMCCU_BuildURL ($hash, $port) // next;
+		my ($url, $auth) = HMCCU_BuildURL ($hash, $port) // next;
 		my $rpcclient = RPC::XML::Client->new ($url);
 		my $response = $rpcclient->simple_request ('listBidcosInterfaces');
 		next if (!defined($response) || ref($response) ne 'ARRAY');

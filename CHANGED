@@ -1,3 +1,4 @@
+ - bugfix:  88_HMCCU.pm: Fixed substitute and authentication
  - bugfix:  88_HMCCU.pm: Bug fixes and improvements
  - bugfix:  88_HMCCURPCPROC.pm: Reduce number of TCP sessions 
  - bugfix:  88_HMCCU.pm: Bug fixes and improvements
