@@ -8,7 +8,7 @@
 #
 #  Configuration parameters for HomeMatic devices.
 #
-#  (c) 2022 by zap (zap01 <at> t-online <dot> de)
+#  (c) 2023 by zap (zap01 <at> t-online <dot> de)
 #
 #########################################################################
 
@@ -315,43 +315,52 @@ $HMCCU_CONFIG_VERSION = '5.0';
 );
 
 #######################################################################################
-# Set commands related to channel role
+# Set/Get commands related to channel role
 #   Role => { Command-Definition, ... }
 # Command-Defintion:
-#   Command[:InterfaceExpr] => [No:]Datapoint-Def[:Function] [...]'
+#   [Mode ]Command[:InterfaceExpr] => [No:]Datapoint-Def[:Function] [...]'
+# Mode:
+#   Either 'set' or 'get'. Default is 'set'.
+# Command:
+#   The command name.
+# InterfaceExpr:
+#   Command is only available, if interface of device is matching the regular
+#   expression.
 # No:
-#   Execution order of subcommands. By default subcommands are
-#   executed from left to right.
+#   Execution order of subcommands. By default subcommands are executed from left to
+#   right.
 # Function:
 #   A Perl function name
 # Datapoint-Def:
-#   No parameters:                   Paramset:Datapoints:[Parameter=]FixedValue[,...]
-#   One parameter:                   Paramset:Datapoints:?Parameter
+#   Command with no parameters:      Paramset:Datapoints:[Parameter=]Value
+#   Toggle command:                  Paramset:Datapoints:[Parameter=]Value1,Value2[,...]
+#   Command with one parameter:      Paramset:Datapoints:?Parameter
 #   Optional parameter with default: Paramset:Datapoints:?Parameter=Default-Value
-#   List of values (also toggle):    Paramset:Datapoints:#Parameter[=FixedValue[,...]]
+#   List of values:                  Paramset:Datapoints:#Parameter[=Value[,...]]
 #   Internal value (paramset "I"):   Paramset:Datapoints:*Parameter=Default-Value
 # Paramset:
 #   V=VALUES, M=MASTER (channel), D=MASTER (device), I=INTERNAL
 # Datapoints:
-#   List of parameter names separated by ','
+#   List of datapoint or config parameter names separated by ','. Multiple names can
+#   be specified to support multiple firmware revesions with different names.
 # Parameter characters:
 #   ? = any value is accepted
-#   # = If datapoint is of type ENUM, values are taken from
-#       parameter set description. Otherwise a list of values must
-#       be specified after '='.
-#   * = internal value $hash->{hmccu}{values}{parameterName}
-#       See also paramset "I"
-# FixedValue: Parameter values are detected in the following order:
-#   1. If command parameter name is identical with controldatapoint,
-#   option values are taken from controldatapoint definition {V}. The
-#   FixedValues are used as lookup key into HMCCU_STATECCONTROL.
-#   The command options are identical to the FixedValues.
-#   2. FixedValues are treated as option values. The option
-#   names are taken from HMCCU_CONVERSIONS by using FixedValues as
-#   lookup key.
-#   3. As a fallback command options and option values are identical.
-# If Default-Value is preceeded by + or -, value is added to or 
-# subtracted from current datapoint value
+#   # = If datapoint is of type ENUM, values are taken from parameter set description.
+#       Otherwise a list of values must be specified after '='.
+#   * = internal value $hash->{hmccu}{values}{parameterName}. See also paramset "I"
+# FixedValue:
+#   Parameter values are detected in the following order:
+#     1. If command parameter name is identical with controldatapoint,
+#        option values are taken from controldatapoint definition {V}. The
+#        FixedValues are used as lookup key into HMCCU_STATECCONTROL.
+#        The command options are identical to the FixedValues.
+#     2. FixedValues are treated as option values. The option
+#        names are taken from HMCCU_CONVERSIONS by using FixedValues as
+#        lookup key.
+#     3. As a fallback command options and option values are identical.
+# Default-Value:
+#   If Default-Value is preceeded by + or -, value is added to or 
+#   subtracted from current datapoint value
 #######################################################################################
 
 %HMCCU_ROLECMDS = (
@@ -365,24 +374,24 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'BLIND' => {
 		'pct' => 'V:LEVEL:?level',
-		'open' => 'V:LEVEL:100',
+		'open' => 'V:LEVEL:1',
 		'close' => 'V:LEVEL:0',
 		'up' => 'V:LEVEL:?delta=+20',
 		'down' => 'V:LEVEL:?delta=-20',
-		'oldPos' => 'V:LEVEL:100.5',
+		'oldPos' => 'V:LEVEL:1.005',
 		'stop' => 'V:STOP:1'
 	},
 	'BLIND_VIRTUAL_RECEIVER' => {
 		'pct' => 'V:LEVEL:?level',
-		'open' => 'V:LEVEL:100',
+		'open' => 'V:LEVEL:1',
 		'close' => 'V:LEVEL:0',
-		'oldLevel' => 'V:LEVEL:100.5',
+		'oldLevel' => 'V:LEVEL:1.005',
 		'up' => 'V:LEVEL:?delta=+20',
 		'down' => 'V:LEVEL:?delta=-20',
 		'stop' => 'V:STOP:1',
-		'pctSlats' => 'V:LEVEL_2:?level V:LEVEL:100.5',
-		'openSlats' => 'V:LEVEL_2:100 V:LEVEL:100.5',
-		'closeSlats' => 'V:LEVEL_2:0 V:LEVEL:100.5',
+		'pctSlats' => 'V:LEVEL_2:?level V:LEVEL:1.005',
+		'openSlats' => 'V:LEVEL_2:100 V:LEVEL:1.005',
+		'closeSlats' => 'V:LEVEL_2:0 V:LEVEL:1.005',
 	},
 	'CLIMATECONTROL_REGULATOR' => {
 		'desired-temp' => 'V:SETPOINT:?temperature',
@@ -402,25 +411,27 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'DIMMER' => {
 		'pct' => '3:V:LEVEL:?level 1:V:ON_TIME:?time=0.0 2:V:RAMP_TIME:?ramp=0.5',
 		'level' => 'V:LEVEL:?level',
-		'on' => 'V:LEVEL:100',
+		'on' => 'V:LEVEL:1',
 		'off' => 'V:LEVEL:0',
-		'on-for-timer' => 'V:ON_TIME:?duration V:LEVEL:100',
-		'on-till' => 'V:ON_TIME:?time V:LEVEL:100',
+		'on-for-timer' => 'V:ON_TIME:?duration V:LEVEL:1',
+		'on-till' => 'V:ON_TIME:?time V:LEVEL:1',
 		'up' => 'V:LEVEL:?delta=+10',
 		'down' => 'V:LEVEL:?delta=-10',
-		'stop' => 'V:RAMP_STOP:1'
+		'stop' => 'V:RAMP_STOP:1',
+		'toggle' => 'V:LEVEL:0,1'
 	},
 	'DIMMER_VIRTUAL_RECEIVER' => {
 		'pct' => '5:V:LEVEL:?level 1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?time=0.0 3:V:RAMP_TIME_UNIT:0 4:V:RAMP_TIME,RAMP_TIME_VALUE:?ramp=0.5',
 		'level' => 'V:LEVEL:?level',
-		'on' => 'V:LEVEL:100',
+		'on' => 'V:LEVEL:1',
 		'off' => 'V:LEVEL:0',
-		'oldLevel' => 'V:LEVEL:100.5',
-		'on-for-timer' => '1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?duration 3:V:LEVEL:100',
-		'on-till' => '1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?time 3:V:LEVEL:100',
+		'oldLevel' => 'V:LEVEL:1.005',
+		'on-for-timer' => '1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?duration 3:V:LEVEL:1',
+		'on-till' => '1:V:DURATION_UNIT:0 2:V:ON_TIME,DURATION_VALUE:?time 3:V:LEVEL:1',
 		'up' => 'V:LEVEL:?delta=+10',
 		'down' => 'V:LEVEL:?delta=-10',
-		'color' => 'V:COLOR:#color'
+		'color' => 'V:COLOR:#color',
+		'toggle' => 'V:LEVEL:0,1'
 	},
 	'DIMMER_WEEK_PROFILE' => {
 		'progMode' => 'V:WEEK_PROGRAM_TARGET_CHANNEL_LOCK:#progMode'
@@ -447,13 +458,13 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'JALOUSIE' => {
 		'pct' => 'V:LEVEL:?level',
-		'open' => 'V:LEVEL:100',
+		'open' => 'V:LEVEL:1',
 		'close' => 'V:LEVEL:0',
 		'up' => 'V:LEVEL:?delta=+20',
 		'down' => 'V:LEVEL:?delta=-20',
 		'stop' => 'V:STOP:1',
 		'pctSlats' => 'V:LEVEL_SLATS:?level',
-		'openSlats' => 'V:LEVEL_SLATS:100',
+		'openSlats' => 'V:LEVEL_SLATS:1',
 		'closeSlats' => 'V:LEVEL_SLATS:0',
 	},
 	'KEY' => {
@@ -486,8 +497,8 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'SHUTTER_VIRTUAL_RECEIVER' => {
 		'pct' => 'V:LEVEL:?level',
-		'open' => 'V:LEVEL:100',
-		'oldLevel' => 'V:LEVEL:100.5',
+		'open' => 'V:LEVEL:1',
+		'oldLevel' => 'V:LEVEL:1.005',
 		'close' => 'V:LEVEL:0',
 		'up' => 'V:LEVEL:?delta=+20',
 		'down' => 'V:LEVEL:?delta=-20',
@@ -500,7 +511,8 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'on' => 'V:STATE:1',
 		'off' => 'V:STATE:0',
 		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
-		'on-till' => 'V:ON_TIME:?time V:STATE:1'
+		'on-till' => 'V:ON_TIME:?time V:STATE:1',
+		'toggle' => 'V:STATE:0,1'
 	},
 	'SWITCH_PANIC' => {
 		'panic' => 'V:STATE:#panic=on,off',
@@ -516,7 +528,8 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'on' => 'V:STATE:1',
 		'off' => 'V:STATE:0',
 		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
-		'on-till' => 'V:ON_TIME:?time V:STATE:1'
+		'on-till' => 'V:ON_TIME:?time V:STATE:1',
+		'toggle' => 'V:STATE:0,1'
 	},
 	'THERMALCONTROL_TRANSMIT' => {
 		'desired-temp' => 'V:SET_TEMPERATURE:?temperature',

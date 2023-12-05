@@ -31,7 +31,7 @@ sub HMCCUDEV_Set ($@);
 sub HMCCUDEV_Get ($@);
 sub HMCCUDEV_Attr ($@);
 
-my $HMCCUDEV_VERSION = '5.0 232691829';
+my $HMCCUDEV_VERSION = '5.0 233341701';
 
 ######################################################################
 # Initialize module
@@ -437,9 +437,9 @@ sub HMCCUDEV_Set ($@)
 	elsif ($lcopt eq 'datapoint') {
 		return HMCCU_ExecuteSetDatapointCommand ($hash, $a, $h);
 	}
-	elsif ($lcopt eq 'toggle') {
-		return HMCCU_ExecuteToggleCommand ($hash);
-	}
+#	elsif ($lcopt eq 'toggle') {
+#		return HMCCU_ExecuteToggleCommand ($hash);
+#	}
 	elsif (exists($hash->{hmccu}{roleCmds}{set}{$opt})) {
 		return HMCCU_ExecuteRoleCommand ($ioHash, $hash, 'set', $opt, $a, $h);
 	}

@@ -30,7 +30,7 @@ sub HMCCUCHN_Set ($@);
 sub HMCCUCHN_Get ($@);
 sub HMCCUCHN_Attr ($@);
 
-my $HMCCUCHN_VERSION = '5.0 232691829';
+my $HMCCUCHN_VERSION = '5.0 233341701';
 
 ######################################################################
 # Initialize module
@@ -349,9 +349,9 @@ sub HMCCUCHN_Set ($@)
 	elsif ($lcopt eq 'datapoint') {
 		return HMCCU_ExecuteSetDatapointCommand ($hash, $a, $h);
 	}
-	elsif ($lcopt eq 'toggle') {
-		return HMCCU_ExecuteToggleCommand ($hash);
-	}
+#	elsif ($lcopt eq 'toggle') {
+#		return HMCCU_ExecuteToggleCommand ($hash);
+#	}
 	elsif (exists($hash->{hmccu}{roleCmds}{set}{$opt})) {
 		return HMCCU_ExecuteRoleCommand ($ioHash, $hash, 'set', $opt, $a, $h);
 	}
@@ -383,6 +383,9 @@ sub HMCCUCHN_Set ($@)
 		$hash->{hmccu}{setDefaults} = 0;
 		HMCCU_RefreshReadings ($hash) if ($rc);
 		return HMCCU_SetError ($hash, $retMsg);
+	}
+	elsif ($lcopt eq 'echo') {
+		return HMCCU_RefToString ($h);
 	}
 	else {
 		return "Unknown argument $opt choose one of $syntax";
