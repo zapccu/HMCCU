@@ -30,7 +30,7 @@ sub HMCCUCHN_Set ($@);
 sub HMCCUCHN_Get ($@);
 sub HMCCUCHN_Attr ($@);
 
-my $HMCCUCHN_VERSION = '5.0 233341701';
+my $HMCCUCHN_VERSION = '5.0 233451845';
 
 ######################################################################
 # Initialize module
@@ -566,12 +566,16 @@ sub HMCCUCHN_Get ($@)
       	Set value of control datapoint. This command is available only on command line
       	for compatibility reasons. It should not be used any more.
       </li><br/>
-      <li><b>set &lt;name&gt; datapoint &lt;datapoint&gt; &lt;value&gt; | &lt;datapoint&gt=&lt;value&gt; [...]</b><br/>
+      <li><b>set &lt;name&gt; datapoint [&lt;no&gt;:][&lt;channel&gt;.]&lt;datapoint&gt; &lt;value&gt; | [&lt;no&gt;:][&lt;channel&gt;.]&lt;datapoint&gt=&lt;value&gt; [...]</b><br/>
         Set datapoint values of a CCU channel. If value contains blank characters it must be
-        enclosed in double quotes. This command is only available, if channel contains a writeable datapoint.<br/><br/>
+        enclosed in double quotes. This command is only available, if channel contains a writeable datapoint.<br/>
+		By using parameter <i>no</i> one can specify the order in which datapoints are set (see 3rd example below).<br/>
+		When using syntax <i>datapoint</i>=<i>value</i> with multiple datapoints always specify a <i>no</i> to ensure 
+		that datapoints are set in the desired order.<br/><br/>
         Examples:<br/>
         <code>set temp_control datapoint SET_TEMPERATURE 21</code><br/>
-        <code>set temp_control datapoint AUTO_MODE 1 SET_TEMPERATURE=21</code>
+        <code>set temp_control datapoint AUTO_MODE 1 SET_TEMPERATURE=21</code><br/>
+		<code>set temp_control datapoint 2:AUTO_MODE=0 1:SET_TEMPERATURE=21</code>
       </li><br/>
       <li><b>set &lt;name&gt; defaults ['reset'|'forceReset'|'old'|'<u>update</u>']</b><br/>
    		Set default attributes for CCU device type. Default attributes are only available for

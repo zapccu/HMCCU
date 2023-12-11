@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 233341701';
+my $HMCCU_VERSION = '5.0 233451845';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -142,10 +142,6 @@ my $HMCCU_DEF_HMSTATE = '^0\.UNREACH!(1|true):unreachable;^[0-9]\.LOW_?BAT!(1|tr
 
 # Placeholder for external addresses (i.e. HVL)
 my $HMCCU_EXT_ADDR = 'ZZZ0000000';
-
-# Regular expression for channel roles, which sould be ignored during automatic device detection
-# For testing purpose only
-my $HMCCU_IGNORE_ROLES = '';
 
 # Declare functions
 
@@ -391,7 +387,7 @@ sub HMCCU_Initialize ($)
 		' ccudef-stripnumber ccudef-attributes ccuReadingPrefix'.
 		' ccuflags:multiple-strict,procrpc,dptnocheck,logCommand,noagg,nohmstate,updGroupMembers,'.
 		'logEvents,noEvents,noInitialUpdate,noReadings,nonBlocking,reconnect,logPong,trace,logEnhanced,'.
-		'noAutoDetect,noAutoSubstitute,unknownDeviceRoles'.
+		'noAutoDetect,noAutoSubstitute'.
 		' ccuReqTimeout ccuGetVars rpcPingCCU rpcinterfaces ccuAdminURLs'.
 		' rpcserver:on,off rpcserveraddr rpcserverport rpctimeout rpcevtimeout substitute'.
 		' ccuget:Value,State devCommand '.
@@ -2997,7 +2993,8 @@ sub HMCCU_Substitute ($$$$$;$$)
 
 	# Substitute enumerations and default parameter type conversions
 	if (defined($devDesc) && defined($ioHash)) {
-		my $paramDef = HMCCU_GetParamDef ($ioHash, $devDesc, 'VALUES', $dpt);
+		my $paramDef = HMCCU_GetParamDef ($ioHash, $devDesc, 'VALUES', $dpt) //
+			HMCCU_GetParamDef ($ioHash, $devDesc, 'MASTER', $dpt);
 		if (defined($paramDef) && defined($paramDef->{TYPE})) {
 			my %ct = (
 				'BOOL' => { '0' => 'false', '1' => 'true' }
@@ -3416,7 +3413,7 @@ sub HMCCU_CreateFHEMDevices ($@)
 			
 			# Detect FHEM device type
 			my $detect = HMCCU_DetectDevice ($hash, $address, $iface);
-			if (!defined($detect) || $detect->{level} == 0) {		
+			if (!defined($detect)) {		
 				$cs{notDetected}{$ccuName} = "$address [$ccuName]";
 				next;
 			}
@@ -3427,7 +3424,11 @@ sub HMCCU_CreateFHEMDevices ($@)
 			# Build FHEM device name
 			my $devName = HMCCU_MakeDeviceName ($defAdd, $devPrefix, $devFormat, $devSuffix, $ccuName);
 
-			if ($detect->{level} == 1) {
+			if ($detect->{level} == 0) {
+				# Unknown HMCCUDEV device
+				HMCCU_CreateDevice ($hash, $ccuName, $devName, $defMod, $defAdd, $defOpts, $ah, \%cs);
+			}
+			elsif ($detect->{level} == 1) {
 				# Simple HMCCUCHN device
 				HMCCU_CreateDevice ($hash, $ccuName, $devName, $defMod, $defAdd, $defOpts, $ah, \%cs);
 			}
@@ -7101,7 +7102,6 @@ sub HMCCU_UpdateRoleCommands ($$;$)
 		next URCROL if (!defined($role) || !exists($HMCCU_ROLECMDS->{$role}));
 		
 		URCCMD: foreach my $cmdKey (keys %{$HMCCU_ROLECMDS->{$role}}) {
-#			next URCCMD if ($clHash->{TYPE} eq 'HMCCUCHN' && $chnNo ne '' && $chnNo != $channel && $chnNo ne 'd');
 			next URCCMD if ($chnNo ne '' && $chnNo != $channel && $chnNo ne 'd');
 			my ($cmd, $cmdIf) = split (':', $cmdKey);
 			next URCCMD if (defined($cmdIf) && $clHash->{ccuif} !~ /$cmdIf/);
@@ -7483,6 +7483,8 @@ sub HMCCU_ExecuteRoleCommand ($@)
 			$value = shift @$a // $cmd->{args};
 			return HMCCU_SetError ($clHash, "Missing parameter $cmd->{parname}. Usage: $mode $name $usage")
 				if ($value eq '');
+			return HMCCU_SetError ($clHash, "Usage: $mode $name $usage")
+				if ($value eq '?');
 			if ($cmd->{args} =~ /^([+-])(.+)$/) {
 				# Delta value. Sign depends on sign of default value. Sign of specified value is ignored
 				return HMCCU_SetError ($clHash, "Current value of $channel.$cmd->{dpt} not available")
@@ -7643,9 +7645,9 @@ sub HMCCU_ExecuteSetDatapointCommand ($@)
 	my ($clHash, $a, $h) = @_;
 	
 	my $ioHash = HMCCU_GetHash ($clHash);
-	my $usage = "Usage: set $clHash->{NAME} datapoint [{channel-number}.]{datapoint} {value} [...]";
+	my $usage = "Usage: set $clHash->{NAME} datapoint [{no}:][{channel-number}.]{datapoint} {value|'oldval'} [...]";
 	my %dpval;
-	my $i = 0;
+	my $cmdNo = 0;
 	my ($devAddr, $chnNo) = HMCCU_SplitChnAddr ($clHash->{ccuaddr});
 	my ($sc, $sd, $cc, $cd) = HMCCU_GetSCDatapoints ($clHash);
 	my $stVals = HMCCU_GetStateValues ($clHash, $cd, $cc);
@@ -7653,15 +7655,24 @@ sub HMCCU_ExecuteSetDatapointCommand ($@)
 	push (@$a, %${h}) if (defined($h));
 	while (my $cdpt = shift @$a) {
 		my $value = shift @$a // return HMCCU_SetError ($clHash, $usage);
-		$i++;
+		$cmdNo++;
 
 		my $chnAddr = '';
 		my $dpt = '';
+		my $dptChn = $chnNo;
+
+		# Check for command order number
+		if ($cdpt =~ /^([0-9]+):/) {
+			$cmdNo = $1;
+			$cdpt =~ s/^[0-9]+://;
+		}
+
 		if ($clHash->{TYPE} eq 'HMCCUDEV') {
 			if ($cdpt =~ /^([0-9]+)\.(.+)$/) {
 				$chnAddr = "$devAddr:$1";
+				$dptChn = $1;
 				$dpt = $2;
-				return HMCCU_SetError ($clHash, -7) if ($1 >= $clHash->{hmccu}{channels});
+				return HMCCU_SetError ($clHash, -7) if ($dptChn >= $clHash->{hmccu}{channels});
 			}
 			else {
 				return HMCCU_SetError ($clHash, -12) if ($cc eq '');
@@ -7673,8 +7684,9 @@ sub HMCCU_ExecuteSetDatapointCommand ($@)
 		else {
 			if ($cdpt =~ /^([0-9]+)\.(.+)$/) {
 				$chnAddr = "$devAddr:$1";
+				$dptChn = $1;
 				$dpt = $2;
-				return HMCCU_SetError ($clHash, -7) if ($1 != $chnNo);
+				return HMCCU_SetError ($clHash, -7) if ($dptChn != $chnNo);
 			}
 			else {
 				$dpt = $cdpt;
@@ -7704,9 +7716,15 @@ sub HMCCU_ExecuteSetDatapointCommand ($@)
 			}
 		}
 
+		if (lc($value) eq 'oldval') {
+			return "Old value of datapoint $dpt not available"
+				if (!defined($clHash->{hmccu}{dp}{"$dptChn.$dpt"}{VALUES}{ONVAL}));
+			$value = $clHash->{hmccu}{dp}{"$dptChn.$dpt"}{VALUES}{ONVAL};
+		}
+
 		$value = HMCCU_Substitute ($value, $stVals, 1, undef, '') if ($stVals ne '' && $dpt eq $cd);
 
-		my $no = sprintf ("%03d", $i);
+		my $no = sprintf ("%03d", $cmdNo);
 		$dpval{"$no.$clHash->{ccuif}.$chnAddr.$dpt"} = $value;
 	}
 
@@ -8447,7 +8465,7 @@ sub HMCCU_DetectDevice ($$$)
 	my ($devAdd, $devChn) = HMCCU_SplitChnAddr ($address);
 
 	my $roleCnt = HMCCU_IdentifyDeviceRoles ($ioHash, $address, $iface, \@allRoles, \@stateRoles, \@controlRoles);
-	if ($roleCnt == 0 && HMCCU_IsFlag($ioHash, 'unknownDeviceRoles')) {
+	if ($roleCnt == 0) {
 		$roleCnt = HMCCU_UnknownDeviceRoles ($ioHash, $address, $iface, \@stateRoles, \@controlRoles);
 	}
 	if ($roleCnt == 0) {
@@ -8470,7 +8488,7 @@ sub HMCCU_DetectDevice ($$$)
 		stateRoleCount => $stateRoleCnt, controlRoleCount => $ctrlRoleCnt,
 		uniqueStateRoleCount => $cntUniqStateRoles, uniqueControlRoleCount => $cntUniqCtrlRoles,
 		rolePatternCount => 0,
-		defMod => '', defSCh => -1, defCCh => -1, defSDP => '', defCDP => '',
+		defMod => 'HMCCUDEV', defAdd => $devAdd, defSCh => -1, defCCh => -1, defSDP => '', defCDP => '',
 		level => 0
 	);
 	my $p = -1;
@@ -8667,7 +8685,7 @@ sub HMCCU_IdentifyChannelRole ($$$$$)
 	
 	my $t = $chnDesc->{TYPE};		# Channel role
 
-	return if (!exists($HMCCU_STATECONTROL->{$t}) || ($HMCCU_IGNORE_ROLES ne '' && $t =~ /$HMCCU_IGNORE_ROLES/));
+	return if (!exists($HMCCU_STATECONTROL->{$t}));
 
 	# Role supported by HMCCU
 	my ($a, $c) = HMCCU_SplitChnAddr ($chnDesc->{ADDRESS});
@@ -8714,9 +8732,9 @@ sub HMCCU_UnknownChannelRole ($$$$)
 {
 	my ($ioHash, $chnDesc, $stateRoles, $controlRoles) = @_;
 	
-	my $t = $chnDesc->{TYPE};		# Channel role
+	my $t = $chnDesc->{TYPE};	# Channel role
 
-	return if ($HMCCU_IGNORE_ROLES ne '' && $t =~ /$HMCCU_IGNORE_ROLES/);
+	return if ($t eq 'MAINTENANCE');
 
 	# Role not supported by HMCCU, check for usable datapoints
 	my $model = HMCCU_GetDeviceModel ($ioHash, $chnDesc->{_model}, $chnDesc->{_fw_ver}, $chnDesc->{INDEX});
@@ -8745,7 +8763,7 @@ sub HMCCU_UnknownChannelRole ($$$$)
 			'channel' => $chnDesc->{INDEX}, 'role' => $chnDesc->{TYPE}, 'datapoint' => $cdp,
 			'dptList' => join(',',@cdpList), 'priority' => 0
 		} if ($cdp ne '');
-		HMCCU_Log ($ioHash, 3, "Unknown role $t. sdp=$sdp, cdp=$cdp") if ($t ne 'MAINTENANCE');
+		HMCCU_Log ($ioHash, 3, "Unknown role $t. sdp=$sdp, cdp=$cdp");
 	}
 }
 
@@ -11095,7 +11113,6 @@ sub HMCCU_MaxHashEntries ($$)
       	server start HMCCU will create a HMCCURPCPROC device for each interface confiugured
       	in attribute 'rpcinterface'<br/>
       	reconnect - Automatically reconnect to CCU when events timeout occurred.<br/>
-			unknownDeviceRoles - Command createDev will create HMCCUDEV or HMCCUCHN devices even if none of the device roles are known by HMCCU. This will become the default in a future version.<br/>
       	updGroupMembers - Update readings of group members in virtual devices.
       </li><br/>
       <li><b>ccuget {State | <u>Value</u>}</b><br/>

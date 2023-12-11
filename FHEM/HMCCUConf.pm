@@ -37,7 +37,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 ######################################################################
 
 %HMCCU_DEF_ROLE = (
-	'ASIR' => 'ALARM_SWITCH_VIRTUAL_RECEIVER',
+#	'ASIR' => 'ALARM_SWITCH_VIRTUAL_RECEIVER',
 	'FSM'  => 'SWITCH_VIRTUAL_RECEIVER',
 	'PSM'  => 'SWITCH_VIRTUAL_RECEIVER',
 	'SD'   => 'SMOKE_DETECTOR'
@@ -58,9 +58,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'ACCESSPOINT_GENERIC_RECEIVER' => {
 		F => 3, S => 'VOLTAGE', C => '', V => '', P => 1
 	},
-	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
-		F => 3, S => 'ACOUSTIC_ALARM_ACTIVE', C => 'ACOUSTIC_ALARM_SELECTION', V => '', P => 2
+	'ACOUSTIC_SIGNAL_TRANSMITTER' => {
+		F => 3, S => 'LEVEL', C => 'LEVEL', V => 'on:100,off:0', P => 2
 	},
+#	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
+#		F => 3, S => 'ACOUSTIC_ALARM_ACTIVE', C => 'ACOUSTIC_ALARM_SELECTION', V => '', P => 2
+#	},
 	'ARMING' => {
 		F => 3, S => 'ARMSTATE', C => 'ARMSTATE', V => '#', P => 2
 	},
@@ -168,6 +171,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'RAINDETECTOR_HEAT' => {
 		F => 3, S => 'STATE', C => 'STATE', V => 'on:true,off:false', P => 2
+	},
+	'RGBW_COLOR' => {
+		F => 3, S => 'COLOR', C => 'COLOR', V => '', P => 2
 	},
 	'ROTARY_HANDLE_SENSOR' => {
 		F => 3, S => 'STATE', C => '', V => '', P => 2
@@ -364,11 +370,16 @@ $HMCCU_CONFIG_VERSION = '5.0';
 #######################################################################################
 
 %HMCCU_ROLECMDS = (
-	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
-		'opticalAlarm' => 'V:OPTICAL_ALARM_SELECTION:#alarmMode V:ACOUSTIC_ALARM_SELECTION:0 V:DURATION_UNIT:*unit=0 V:DURATION_VALUE:*duration=10',
-		'acousticAlarm' => 'V:ACOUSTIC_ALARM_SELECTION:#alarmMode V:OPTICAL_ALARM_SELECTION:0 V:DURATION_UNIT:0 V:DURATION_VALUE:10',
-		'duration' => 'I:DURATION_VALUE:?duration I:DURATION_UNIT:#unit'
+	'ACOUSTIC_SIGNAL_TRANSMITTER' => {
+		'level' => 'V:LEVEL:?level',
+		'on' => 'V:LEVEL:1',
+		'off' => 'V:LEVEL:0'
 	},
+#	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
+#		'opticalAlarm' => 'V:OPTICAL_ALARM_SELECTION:#alarmMode V:ACOUSTIC_ALARM_SELECTION:0 V:DURATION_UNIT:*unit=0 V:DURATION_VALUE:*duration=10',
+#		'acousticAlarm' => 'V:ACOUSTIC_ALARM_SELECTION:#alarmMode V:OPTICAL_ALARM_SELECTION:0 V:DURATION_UNIT:0 V:DURATION_VALUE:10',
+#		'duration' => 'I:DURATION_VALUE:?duration I:DURATION_UNIT:#unit'
+#	},
 	'ARMING' => {
 		'armState' => 'V:ARMSTATE:#armState'
 	},
@@ -494,6 +505,10 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'off' => 'V:STATE:0',
 		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
 		'on-till' => 'V:ON_TIME:?time V:STATE:1'
+	},
+	'RGBW_COLOR' => {
+		'color' => 'V:COLOR:?color V:ACT_HSV_COLOR_VALUE:?hsvColor',
+		'brightness' => 'V:ACT_BRIGHTNESS:?brightness'
 	},
 	'SHUTTER_VIRTUAL_RECEIVER' => {
 		'pct' => 'V:LEVEL:?level',
@@ -742,9 +757,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'ROTARY_HANDLE_TRANSCEIVER' => {
 		'STATE' => { '0' => 'closed', '1' => 'tilted', '2' => 'open' }
 	},
-	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
-		'STATE' => { '0' => 'ok', '1' => 'alarm', 'false' => 'ok', 'true' => 'alarm' }
-	},
+#	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
+#		'STATE' => { '0' => 'ok', '1' => 'alarm', 'false' => 'ok', 'true' => 'alarm' }
+#	},
 	'SWITCH' => {
 		'STATE' => { '0' => 'off', 'false' => 'off', '1' => 'on', 'true' => 'on', 'off' => '0', 'on' => '1' },
 	},
