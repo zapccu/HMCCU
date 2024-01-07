@@ -1,6 +1,31 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 240071608</h2>
+<ul>
+<li>#249 - [Bugfix] Special datapoint values like 1.005 are not working</li>
+<li>#248 - [feature] Add support for setting a datapoint to its previous value</li>
+<li>#247 - [Feature] Removed attribute 'peer' from HMCCUDEV and HMCCUCHN</li>
+<li>#246 - [Feature] Added on page navigation to output of command 'get paramsetDesc'</li>
+<li>#245 - [Feature] Optimized support of umlaut characters in CCU device names</li>
+<li>#243 - [Bugfix] Reading values for datapoints of type ENUM where not converted correctly</li>
+<li>#242 - [Bugfix] Numbering of iface_xxx readings changed after FHEM restart</li>
+<li>#239 - [Feature] Command 'get createDev' now creates FHEM devices for unknown Homematic device types</li>
+<li>#234 - [Bugfix] Passwords with trailing '#' were not sent correctly to CCU</li>
+<li>#231 - [Bugfix] Attribute 'substitute' was not working correctly in some cases</li>
+<li>#228 - [Feature] Removed current state and control datapoint from out of 'get deviceInfo'</li>
+<li>#213 - [Bugfix] Blanks and special characters are not considered correctly in ENUM datapoints</li>
+<li>#150 - [Feature] Added support for HM-LC-DW-WM <sup>2</sup></li>
+<li>#143 - [Bugfix] Consider empty datapoint values in device detection response</li>
+<li>#119 - [Feature] Allow sequence numbers in command 'set datapoint' <sup>1</sup></li>
+<li>#118 - [Bugfix] Trailing zeroes are stripped from scaled reading values</li>
+<li>#106 - [Feature] Added support for HM-LC-RGBW-WM <sup>2</sup></li>
+<li>#67  - [Feature] Added support for HmIP-MP3P <sup>2</sup></li>
+</ul>
+
+<sup>1</sup>Example: set mySwitch datapoint 1:ON_TIME=30 2:STATE=true<br/>
+<sup>2</sup>Not tested, because I do not own these device types. Please test it.<br/>
+
 <h2>Version 5.0 222930908</h2>
 <ul>
 <li>#228 - Remove current state/control datapoint from CCU device info</li>

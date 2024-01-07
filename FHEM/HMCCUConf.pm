@@ -8,7 +8,7 @@
 #
 #  Configuration parameters for HomeMatic devices.
 #
-#  (c) 2023 by zap (zap01 <at> t-online <dot> de)
+#  (c) 2024 by zap (zap01 <at> t-online <dot> de)
 #
 #########################################################################
 
@@ -37,7 +37,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 ######################################################################
 
 %HMCCU_DEF_ROLE = (
-#	'ASIR' => 'ALARM_SWITCH_VIRTUAL_RECEIVER',
+	'ASIR' => 'ALARM_SWITCH_VIRTUAL_RECEIVER',
 	'FSM'  => 'SWITCH_VIRTUAL_RECEIVER',
 	'PSM'  => 'SWITCH_VIRTUAL_RECEIVER',
 	'SD'   => 'SMOKE_DETECTOR'
@@ -61,9 +61,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'ACOUSTIC_SIGNAL_TRANSMITTER' => {
 		F => 3, S => 'LEVEL', C => 'LEVEL', V => 'on:100,off:0', P => 2
 	},
-#	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
-#		F => 3, S => 'ACOUSTIC_ALARM_ACTIVE', C => 'ACOUSTIC_ALARM_SELECTION', V => '', P => 2
-#	},
+	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
+		F => 3, S => 'ACOUSTIC_ALARM_ACTIVE', C => 'ACOUSTIC_ALARM_SELECTION', V => '', P => 2
+	},
 	'ARMING' => {
 		F => 3, S => 'ARMSTATE', C => 'ARMSTATE', V => '#', P => 2
 	},
@@ -375,11 +375,11 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'on' => 'V:LEVEL:1',
 		'off' => 'V:LEVEL:0'
 	},
-#	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
-#		'opticalAlarm' => 'V:OPTICAL_ALARM_SELECTION:#alarmMode V:ACOUSTIC_ALARM_SELECTION:0 V:DURATION_UNIT:*unit=0 V:DURATION_VALUE:*duration=10',
-#		'acousticAlarm' => 'V:ACOUSTIC_ALARM_SELECTION:#alarmMode V:OPTICAL_ALARM_SELECTION:0 V:DURATION_UNIT:0 V:DURATION_VALUE:10',
-#		'duration' => 'I:DURATION_VALUE:?duration I:DURATION_UNIT:#unit'
-#	},
+	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
+		'opticalAlarm' => 'V:OPTICAL_ALARM_SELECTION:#alarmMode V:ACOUSTIC_ALARM_SELECTION:0 V:DURATION_UNIT:*unit=0 V:DURATION_VALUE:*duration=10',
+		'acousticAlarm' => 'V:ACOUSTIC_ALARM_SELECTION:#alarmMode V:OPTICAL_ALARM_SELECTION:0 V:DURATION_UNIT:0 V:DURATION_VALUE:10',
+		'duration' => 'I:DURATION_VALUE:?duration I:DURATION_UNIT:#unit'
+	},
 	'ARMING' => {
 		'armState' => 'V:ARMSTATE:#armState'
 	},
@@ -757,9 +757,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'ROTARY_HANDLE_TRANSCEIVER' => {
 		'STATE' => { '0' => 'closed', '1' => 'tilted', '2' => 'open' }
 	},
-#	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
-#		'STATE' => { '0' => 'ok', '1' => 'alarm', 'false' => 'ok', 'true' => 'alarm' }
-#	},
+	'ALARM_SWITCH_VIRTUAL_RECEIVER' => {
+		'STATE' => { '0' => 'ok', '1' => 'alarm', 'false' => 'ok', 'true' => 'alarm' }
+	},
 	'SWITCH' => {
 		'STATE' => { '0' => 'off', 'false' => 'off', '1' => 'on', 'true' => 'on', 'off' => '0', 'on' => '1' },
 	},
