@@ -1,7 +1,7 @@
 
 <h1>Version History</h1>
 
-<h2>Version 5.0 240071608</h2>
+<h2>Version 5.0 240101311</h2>
 <ul>
 <li>#249 - [Bugfix] Special datapoint values like 1.005 are not working</li>
 <li>#248 - [feature] Add support for setting a datapoint to its previous value</li>

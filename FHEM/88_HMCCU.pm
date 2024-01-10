@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 240071608';
+my $HMCCU_VERSION = '5.0 240101311';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -8555,7 +8555,10 @@ sub HMCCU_HMCommand ($$$)
 
 	my $param = { url => $url, timeout => $ccureqtimeout, data => $cmd, method => "POST" };
 	$param->{sslargs} = { SSL_verify_mode => 0 };
-	$param->{header} = "Authorization: Basic $auth" if ($auth ne '');
+	my %header = ('Content-Type' => 'text/plain; charset=utf-8');
+	$header{'Authorization'} = "Basic $auth" if ($auth ne '');
+	$param->{header} = \%header;
+
 	my ($err, $response) = HttpUtils_BlockingGet ($param);
 	
 	if ($err eq '') {
@@ -8595,7 +8598,10 @@ sub HMCCU_HMCommandNB ($$$)
 	my $param = { url => $url, timeout => $ccureqtimeout, data => $cmd, method => "POST",
 		callback => \&HMCCU_HMScriptCB, cbFunc => $cbFunc, devhash => $clHash, ioHash => $ioHash };
 	$param->{sslargs} = { SSL_verify_mode => 0 };
-	$param->{header} = "Authorization: Basic $auth" if ($auth ne '');
+	my %header = ('Content-Type' => 'text/plain; charset=utf-8');
+	$header{'Authorization'} = "Basic $auth" if ($auth ne '');
+	$param->{header} = \%header;
+	
 	HttpUtils_NonblockingGet ($param);
 }
 
@@ -8681,7 +8687,7 @@ sub HMCCU_HMScriptExt ($$;$$$)
 	
 	# Execute script on CCU
 	my ($url, $auth) = HMCCU_BuildURL ($hash, 'rega');
-	my %header = ('Content-Type' => 'text/plain');
+	my %header = ('Content-Type' => 'text/plain; charset=utf-8');
 	$header{'Authorization'} = "Basic $auth" if ($auth ne '');
 	if (defined($cbFunc)) {
 		# Non blocking
@@ -8738,6 +8744,7 @@ sub HMCCU_HMScriptCB ($$$)
 
 ######################################################################
 # Format result of Homematic script execution
+# Response is converted from ISO-8859-1 to UTF-8
 ######################################################################
 
 sub HMCCU_FormatScriptResponse ($)

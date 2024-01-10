@@ -2328,7 +2328,7 @@ if(oTmpArray) {
         object odev = dom.GetObject((och.Device()));
         var ival = trigDP.Value();
         time sftime = oTmp.AlOccurrenceTime(); ! erste Meldezeit
-        time sltime = oTmp.LastTriggerTime();!letze Meldezeit
+        time sltime = oTmp.LastTriggerTime();  ! letzte Meldezeit
         var sdesc = trigDP.HssType();
         var sserial = odev.Address();
         var sname = odev.Name();
