@@ -1,7 +1,7 @@
 
 <h1>Version History</h1>
 
-<h2>Version 5.0 240101311</h2>
+<h2>Version 5.0 240121821</h2>
 <ul>
 <li>#252 - [feature] Added support for HmIP-RGBW</li>
 <li>#251 - [Bugfix] Internal datapoint values are overwritten</li>
