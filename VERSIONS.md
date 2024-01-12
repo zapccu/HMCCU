@@ -3,8 +3,10 @@
 
 <h2>Version 5.0 240101311</h2>
 <ul>
+<li>#252 - [feature] Added support for HmIP-RGBW</li>
+<li>#251 - [Bugfix] Internal datapoint values are overwritten</li>
 <li>#249 - [Bugfix] Special datapoint values like 1.005 are not working</li>
-<li>#248 - [feature] Add support for setting a datapoint to its previous value</li>
+<li>#248 - [feature] Added support for setting a datapoint to its previous value ('oldval')</li>
 <li>#247 - [Feature] Removed attribute 'peer' from HMCCUDEV and HMCCUCHN</li>
 <li>#246 - [Feature] Added on page navigation to output of command 'get paramsetDesc'</li>
 <li>#245 - [Feature] Optimized support of umlaut characters in CCU device names</li>

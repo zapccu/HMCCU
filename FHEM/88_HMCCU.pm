@@ -57,7 +57,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 240101311';
+my $HMCCU_VERSION = '5.0 240121821';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -4636,7 +4636,8 @@ sub HMCCU_UpdateParamsetReadings ($$$;$)
 					
 					# Key for storing values in client device hash. Indirect updates of virtual
 					# devices are stored with device address in key.
-					my $chKey = $devAddr ne $a ? "$chnAddr.$p" : "$c.$p";
+					# my $chKey = $devAddr ne $a ? "$chnAddr.$p" : "$c.$p";
+					my $chKey = "$c.$p";
 
 					# Store raw value in client device hash
 					HMCCU_UpdateInternalValues ($clHash, $chKey, $ps, 'VAL', $v);
@@ -4765,11 +4766,9 @@ sub HMCCU_UpdateInternalValues ($$$$$)
 	}
 	
 	# Save old value
-	if (exists ($ch->{hmccu}{dp}{$chkey}{$paramset}{$type})) {
-		$ch->{hmccu}{dp}{$chkey}{$paramset}{$otype} = $ch->{hmccu}{dp}{$chkey}{$paramset}{$type};
-	}
-	else {
-		$ch->{hmccu}{dp}{$chkey}{$paramset}{$otype} = $value;
+	my $cvalue = $ch->{hmccu}{dp}{$chkey}{$paramset}{$type};
+	if (defined($cvalue) && "$value" ne "$cvalue") {
+		$ch->{hmccu}{dp}{$chkey}{$paramset}{$otype} = $cvalue;
 	}
 	
 	# Store new value

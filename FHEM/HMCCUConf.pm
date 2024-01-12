@@ -217,6 +217,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	'TILT_SENSOR' => {
 		F => 3, S => 'STATE', C => '', V => '', P => 1
 	},
+	'UNIVERSAL_LIGHT_RECEIVER' => {
+		F => 3, S => 'LEVEL', C => 'LEVEL', V => 'on:100,off:0', P => 1
+	},
 	'VIRTUAL_KEY' => {
 		F => 3, S => 'PRESS_SHORT', C => 'PRESS_SHORT', V => 'pressed:true', P => 1
 	},
@@ -556,6 +559,17 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'week-program' => 'D:WEEK_PROGRAM_POINTER:#program',
 		'get week-program' => 'D:WEEK_PROGRAM_POINTER:#program:HMCCU_DisplayWeekProgram'
 	},
+	'UNIVERSAL_LIGHT_RECEIVER' => {
+		'pct' => '5:V:LEVEL:?level 1:V:DURATION_UNIT:0 2:V:DURATION_VALUE:?time=0.0 3:V:RAMP_TIME_UNIT:0 4:V:RAMP_TIME_VALUE:?ramp=0.5',
+		'level' => 'V:LEVEL:?level',
+		'on' => 'V:LEVEL:1',
+		'off' => 'V:LEVEL:0',
+		'on-for-timer' => '1:V:DURATION_UNIT:0 2:V:DURATION_VALUE:?duration 3:V:LEVEL:1',
+		'on-till' => '1:V:DURATION_UNIT:0 2:V:DURATION_VALUE:?time 3:V:LEVEL:1',
+		'up' => 'V:LEVEL:?delta=+10',
+		'down' => 'V:LEVEL:?delta=-10',
+		'toggle' => 'V:LEVEL:0,1'
+	},
 	'VIRTUAL_KEY' => {
 		'on' => 'V:PRESS_SHORT:1',
 		'off' => 'V:PRESS_SHORT:1',
@@ -669,6 +683,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'cmdIcon' => 'auto:sani_heating_automatic manu:sani_heating_manual boost:sani_heating_boost on:general_an off:general_aus',
 		'webCmd' => 'desired-temp:auto:manu:boost:on:off',
 		'widgetOverride' => 'desired-temp:slider,4.5,0.5,30.5,1'
+	},
+	'UNIVERSAL_LIGHT_RECEIVER' => {
+		'cmdIcon' => 'on:general_an off:general_aus',
+		'substexcl' => 'pct|level',
+		'webCmd' => 'level:on:off',
+		'widgetOverride' => 'level:slider,0,10,100'
 	},
 	'CLIMATECONTROL_RT_TRANSCEIVER' => {
 		'substexcl' => 'desired-temp',
@@ -829,6 +849,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 	},
 	'CLIMATECONTROL_REGULATOR' => {
 		'SETPOINT' => { '4.5' => 'off', '30.5' => 'on' }		
+	},
+	'UNIVERSAL_LIGHT_RECEIVER' => {
+		'LEVEL' => { '0' => 'off', '100' => 'on', 'off' => '0', 'on' => '100' }
 	},
 	'WATER_DETECTION_TRANSMITTER' => {
 		'ALARMSTATE' => { '0' => 'noAlarm', '1' => 'alarm', 'false' => 'noAlarm', 'true' => 'alarm' }
