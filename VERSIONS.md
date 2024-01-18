@@ -1,6 +1,17 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 240151718</h2>
+<ul>
+<li>#256 - [Feature] Remove indirect reading updates for virtual group devices</li>
+<li>#255 - [Feature] Optimize readings update process</li>
+<li>#254 - [Feature] Log device names for failed datapoint updates</li>
+<li>#253 - [Feature] Terminate RPC server processes when parent FHEM process died</li>
+<li>#252 - [Feature] Added support for HmIP-RGBW (command set color)</li>
+<li>#199 - [Bugfix] Timeout when querying non existing parameter set SERVICES</li>
+<li>#159 - [Feature] Added support for COMBINED_PARAMETER and SUBMIT datapoints</li>
+</ul>
+
 <h2>Version 5.0 240121821</h2>
 <ul>
 <li>#252 - [feature] Added support for HmIP-RGBW</li>

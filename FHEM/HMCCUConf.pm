@@ -327,7 +327,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 # Set/Get commands related to channel role
 #   Role => { Command-Definition, ... }
 # Command-Defintion:
-#   [Mode ]Command[:InterfaceExpr] => [No:]Datapoint-Def[:Function] [...]'
+#   '[Mode ]Command[:InterfaceExpr]' => '[CombDatapoint ][No:]Datapoint-Def[:Function] [...]'
 # Mode:
 #   Either 'set' or 'get'. Default is 'set'.
 # Command:
@@ -335,6 +335,9 @@ $HMCCU_CONFIG_VERSION = '5.0';
 # InterfaceExpr:
 #   Command is only available, if interface of device is matching the regular
 #   expression.
+# CombDatapoint:
+#   Either 'COMBINED_PARAMETER' or 'SUBMIT'
+#   Datapoint names are combined datapoint shortcuts.
 # No:
 #   Execution order of subcommands. By default subcommands are executed from left to
 #   right.
@@ -348,7 +351,7 @@ $HMCCU_CONFIG_VERSION = '5.0';
 #   List of values:                  Paramset:Datapoints:#Parameter[=Value[,...]]
 #   Internal value (paramset "I"):   Paramset:Datapoints:*Parameter=Default-Value
 # Paramset:
-#   V=VALUES, M=MASTER (channel), D=MASTER (device), I=INTERNAL
+#   V=VALUES, M=MASTER (channel), D=MASTER (device), I=INTERNAL, S=VALUE_STRING
 # Datapoints:
 #   List of datapoint or config parameter names separated by ','. Multiple names can
 #   be specified to support multiple firmware revesions with different names.
@@ -543,9 +546,13 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'sensor-on-till' => 'V:ON_TIME:?time V:STATE:1'
 	},
 	'SWITCH_VIRTUAL_RECEIVER' => {
+		'COMBINED_PARAMETER' => {
+			'OT' => 'ON_TIME',
+			'S'  => 'STATE'
+		},
 		'on' => 'V:STATE:1',
 		'off' => 'V:STATE:0',
-		'on-for-timer' => 'V:ON_TIME:?duration V:STATE:1',
+		'on-for-timer' => 'COMBINED_PARAMETER V:OT:?duration V:S:1',
 		'on-till' => 'V:ON_TIME:?time V:STATE:1',
 		'toggle' => 'V:STATE:0,1'
 	},
@@ -560,6 +567,12 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'get week-program' => 'D:WEEK_PROGRAM_POINTER:#program:HMCCU_DisplayWeekProgram'
 	},
 	'UNIVERSAL_LIGHT_RECEIVER' => {
+		'COMBINED_PARAMETER' => {
+			'L' => 'LEVEL',
+			'OT'  => 'ON_TIME',
+			'H' => 'HUE',
+			'SAT' => 'SATURATION'
+		},
 		'pct' => '5:V:LEVEL:?level 1:V:DURATION_UNIT:0 2:V:DURATION_VALUE:?time=0.0 3:V:RAMP_TIME_UNIT:0 4:V:RAMP_TIME_VALUE:?ramp=0.5',
 		'level' => 'V:LEVEL:?level',
 		'on' => 'V:LEVEL:1',
@@ -568,7 +581,8 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'on-till' => '1:V:DURATION_UNIT:0 2:V:DURATION_VALUE:?time 3:V:LEVEL:1',
 		'up' => 'V:LEVEL:?delta=+10',
 		'down' => 'V:LEVEL:?delta=-10',
-		'toggle' => 'V:LEVEL:0,1'
+		'toggle' => 'V:LEVEL:0,1',
+		'color' => 'COMBINED_PARAMETER V:L:?level V:H:?hue V:SAT:?saturation'
 	},
 	'VIRTUAL_KEY' => {
 		'on' => 'V:PRESS_SHORT:1',

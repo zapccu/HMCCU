@@ -8,7 +8,7 @@
 #
 #  Subprocess based RPC Server module for HMCCU.
 #
-#  (c) 2023 by zap (zap01 <at> t-online <dot> de)
+#  (c) 2024 by zap (zap01 <at> t-online <dot> de)
 #
 ##############################################################################
 #
@@ -39,7 +39,7 @@ use SetExtensions;
 ######################################################################
 
 # HMCCURPC version
-my $HMCCURPCPROC_VERSION = '5.0 240121821';
+my $HMCCURPCPROC_VERSION = '5.0 240151718';
 
 # Maximum number of events processed per call of Read()
 my $HMCCURPCPROC_MAX_EVENTS = 100;
@@ -88,6 +88,9 @@ my $HMCCURPCPROC_INIT_INTERVAL2 = 30;
 
 # Delay for RPC server functionality check after start in seconds
 my $HMCCURPCPROC_INIT_INTERVAL3 = 25;
+
+# Interval for checking status of parent (FHEM) process in seconds
+my $HMCCURPCPROC_PARENT_CHECK_INTERVAL = 5;
 
 my %HMCCURPCPROC_RPC_FLAGS = (
    'BidCos-Wired' => '_', 'BidCos-RF' => 'multicalls', 'HmIP-RF' => '_',
@@ -1406,6 +1409,9 @@ sub HMCCURPCPROC_RegisterCallback ($$)
 
 ######################################################################
 # Deregister RPC callbacks at CCU
+# force:
+#   >0 - Ignore state of RPC server. Deregister in any case.
+#   >1 - Do not update RPC server state.
 ######################################################################
 
 sub HMCCURPCPROC_DeRegisterCallback ($$)
@@ -1417,18 +1423,14 @@ sub HMCCURPCPROC_DeRegisterCallback ($$)
 	my $port = $hash->{rpcport};
 	my $clkey = HMCCURPCPROC_GetKey ($hash);
 	my $localaddr = $hash->{hmccu}{localaddr};
-	my $cburl = '';
-	my $clurl = '';
-	my $auth = '';
 	my $rpchash = \%{$hash->{hmccu}{rpc}};
 
 	return (0, "RPC server $clkey not in state registered or running")
 		if ($rpchash->{state} ne 'registered' && $rpchash->{state} ne 'running' && $force == 0);
 
-	$cburl = $rpchash->{cburl} if (exists($rpchash->{cburl}));
-	$clurl = $rpchash->{clurl} if (exists($rpchash->{clurl}));
-	$auth  = $rpchash->{auth}  if (exists($rpchash->{auth}));
-	$cburl = HMCCU_GetRPCCallbackURL ($ioHash, $localaddr, $rpchash->{cbport}, $clkey, $port) if ($cburl eq '');
+	my $cburl = $rpchash->{cburl} // HMCCU_GetRPCCallbackURL ($ioHash, $localaddr, $rpchash->{cbport}, $clkey, $port);
+	my $clurl = $rpchash->{clurl} // '';
+	my $auth  = $rpchash->{auth}  // '';
 	($clurl, $auth) = HMCCU_BuildURL ($ioHash, $port) if ($clurl eq '');
 	return (0, "Can't get RPC parameters for ID $clkey") if ($cburl eq '' || $clurl eq '');
 
@@ -1439,7 +1441,7 @@ sub HMCCURPCPROC_DeRegisterCallback ($$)
 	my $err;
 	for (my $i=0; $i<2; $i++) {
 		($resp, $err) = HMCCURPCPROC_SendRequest ($hash, "init", "$cburl:STRING", '');
-		if (defined ($resp)) {
+		if (defined ($resp) && $force < 2) {
 			HMCCURPCPROC_SetRPCState ($hash, $force == 0 ? 'deregistered' : $rpchash->{state},
 				"Callback for RPC server $clkey deregistered", 1);
 
@@ -1593,6 +1595,7 @@ sub HMCCURPCPROC_StartRPCServer ($)
 	($procpar{flags}, $procpar{type}) = HMCCU_GetRPCServerInfo ($ioHash, $rpcport, 'flags,type');
 	$procpar{name}        = $name;
 	$procpar{clkey}       = $clkey;
+	$procpar{parentPID}   = $$;
 	
 	# Reset state of server processes
 	$hash->{hmccu}{rpc}{state} = 'inactive';
@@ -1612,18 +1615,15 @@ sub HMCCURPCPROC_StartRPCServer ($)
 	$selectlist{"RPC.$name.$pid"} = $hash; 
 	my $callbackport = $rpcserverport+$rpcport+($ccunum*10);
 	
-	# Initialize RPC server
-#	my $err = '';
-#	my %srvprocpar;
-
 	# Start RPC server process
-	my $rpcpid = fhemFork ();
+#	my $rpcpid = fhemFork ();
+	my $rpcpid = fork ();
 	if (!defined($rpcpid)) {
 		close ($sockparent);
 		close ($sockchild);
 		return (0, "Can't create RPC server process for interface $interface");
 	}
-		
+
 	if (!$rpcpid) {
 		# Child process, only needs parent socket
 		HMCCURPCPROC_HandleConnection ($rpcport, $callbackport, $sockparent, \%procpar);
@@ -1631,7 +1631,7 @@ sub HMCCURPCPROC_StartRPCServer ($)
 		# Connection loop ended. Close sockets and exit child process
 		close ($sockparent);
 		close ($sockchild);
-		exit (0);
+		exit(0);
 	}
 
 	# Parent process
@@ -1687,7 +1687,7 @@ sub HMCCURPCPROC_RPCServerStarted ($)
 		# Update client devices if interface is managed by HMCCURPCPROC device.
 		# Normally interfaces are managed by HMCCU device.
 		if ($ioHash->{hmccu}{interfaces}{$ifname}{manager} eq 'HMCCURPCPROC') {
-			HMCCU_UpdateClients ($ioHash, '.*', 'Attr', 0, $ifname, 1);
+			HMCCU_UpdateClients ($ioHash, '.*', 'Attr', $ifname, 1);
 		}
 
 		RemoveInternalTimer ($hash, "HMCCURPCPROC_IsRPCServerRunning");
@@ -2374,6 +2374,7 @@ sub HMCCURPCPROC_HandleConnection ($$$$)
 	my $maxsnd      = $procpar->{queuesend};
 	my $maxioerrors = $procpar->{maxioerrors};
 	my $clkey       = $procpar->{clkey};
+	my $parentPID   = $procpar->{parentPID};
 	
 	my $ioerrors = 0;
 	my $sioerrors = 0;
@@ -2411,17 +2412,28 @@ sub HMCCURPCPROC_HandleConnection ($$$$)
 	# Signal handler
 	$SIG{INT} = sub { $run = 0; HMCCU_Log ($name, 2, "$clkey received signal INT"); };	
 
+	my $checkTime = time();	# At this point in time we checked the state of the parent process
+
 	HMCCURPCPROC_Write ($rpcsrv, 'SL', $clkey, $pid);
 	HMCCU_Log ($name, 2, "$clkey accepting connections. PID=$pid");
 	
 	$rpcsrv->{__daemon}->timeout ($acctimeout) if ($acctimeout > 0.0);
 
-	while ($run) {
+	while ($run > 0) {
+		my $currentTime = time();
+
+		# Check for event timeout
 		if ($evttimeout > 0) {
-			my $difftime = time()-$rpcsrv->{hmccu}{evttime};
+			my $difftime = $currentTime-$rpcsrv->{hmccu}{evttime};
 			HMCCURPCPROC_Write ($rpcsrv, 'TO', $clkey, $difftime) if ($difftime >= $evttimeout);
 		}
-		
+
+		# Check if parent process is still running
+		if ($currentTime-$checkTime > $HMCCURPCPROC_PARENT_CHECK_INTERVAL) {
+			$run = kill(0, $parentPID) ? 1 : -1;
+			$checkTime = $currentTime;
+		}
+
 		# Send queue entries to parent process
 		if (scalar (@queue) > 0) {
 			HMCCU_Log ($name, 4, "RPC server $clkey sending data to FHEM");
@@ -2440,7 +2452,7 @@ sub HMCCURPCPROC_HandleConnection ($$$$)
 		HMCCU_Log ($name, 4, "RPC server $clkey accepting connections");
 		my $connection = $rpcsrv->{__daemon}->accept ();
 		next if (! $connection);
-		last if (! $run);
+		last if ($run < 1);
 		$connection->timeout ($conntimeout) if ($conntimeout > 0.0);
 		
 		HMCCU_Log ($name, 4, "RPC server $clkey processing request");
@@ -2456,10 +2468,17 @@ sub HMCCURPCPROC_HandleConnection ($$$$)
 		undef $connection;
 	}
 
-	HMCCU_Log ($name, 1, "RPC server $clkey stopped handling connections. PID=$pid");
+	HMCCU_Log ($name, 1, "RPC server $clkey stopped handling connections. PID=$pid run=$run");
 
 	close ($rpcsrv->{__daemon}) if ($prot eq 'B');
-	
+
+	if ($run < 0) {
+		# Parent process not running
+		HMCCU_Log ($name, 1, "Parent process (FHEM,PID=$parentPID) not running. Shutting down RPC server process.");
+		HMCCU_Log ($name, 1, "FHEM will be restarted automatically if restart is enabled in system.d configuration.");
+		return;
+	}
+
 	# Send statistic info
 	HMCCURPCPROC_WriteStats ($rpcsrv, $clkey);
 

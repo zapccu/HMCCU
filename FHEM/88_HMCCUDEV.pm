@@ -6,7 +6,7 @@
 #
 #  Version 5.0
 #
-#  (c) 2022 zap (zap01 <at> t-online <dot> de)
+#  (c) 2024 zap (zap01 <at> t-online <dot> de)
 #
 ######################################################################
 #  Client device for Homematic devices.
@@ -31,7 +31,7 @@ sub HMCCUDEV_Set ($@);
 sub HMCCUDEV_Get ($@);
 sub HMCCUDEV_Attr ($@);
 
-my $HMCCUDEV_VERSION = '5.0 240121821';
+my $HMCCUDEV_VERSION = '5.0 240151718';
 
 ######################################################################
 # Initialize module
@@ -52,7 +52,7 @@ sub HMCCUDEV_Initialize ($)
 	$hash->{parseParams} = 1;
 
 	$hash->{AttrList} = 'IODev ccuaggregate:textField-long ccucalculate:textField-long '. 
-		'ccuflags:multiple-strict,ackState,hideStdReadings,replaceStdReadings,noAutoSubstitute,noBoundsChecking,logCommand,noReadings,trace,simulate,showMasterReadings,showLinkReadings,showDeviceReadings,showServiceReadings '.
+		'ccuflags:multiple-strict,ackState,hideStdReadings,replaceStdReadings,noAutoSubstitute,noBoundsChecking,logCommand,noReadings,trace,simulate,showMasterReadings,showLinkReadings,showDeviceReadings '.
 		'ccureadingfilter:textField-long '.
 		'ccureadingformat:name,namelc,address,addresslc,datapoint,datapointlc '.
 		'ccureadingname:textField-long ccuSetOnChange ccuReadingPrefix devStateFlags '.
@@ -259,7 +259,7 @@ sub HMCCUDEV_InitDevice ($$)
 		}
 
 		# Update readings
-		HMCCU_GetUpdate ($devHash, $da);
+		HMCCU_ExecuteGetExtValuesCommand ($devHash, $da);
 	}
 
 	# Parse group options
@@ -541,7 +541,7 @@ sub HMCCUDEV_Get ($@)
 	}
 	elsif ($lcopt eq 'extvalues') {
 		my $filter = shift @$a;
-		my $rc = HMCCU_GetUpdate ($hash, $ccuaddr, $filter);
+		my $rc = HMCCU_ExecuteGetExtValuesCommand ($hash, $ccuaddr, $filter);
 		return $rc < 0 ? HMCCU_SetError ($hash, $rc) : 'OK';
 	}
 	elsif ($lcopt eq 'paramsetdesc') {
