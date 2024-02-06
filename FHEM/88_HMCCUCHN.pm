@@ -30,7 +30,7 @@ sub HMCCUCHN_Set ($@);
 sub HMCCUCHN_Get ($@);
 sub HMCCUCHN_Attr ($@);
 
-my $HMCCUCHN_VERSION = '5.0 240151718';
+my $HMCCUCHN_VERSION = '5.0 2024-02';
 
 ######################################################################
 # Initialize module
@@ -352,9 +352,6 @@ sub HMCCUCHN_Set ($@)
 	elsif ($lcopt eq 'datapoint') {
 		return HMCCU_ExecuteSetDatapointCommand ($hash, $a, $h);
 	}
-#	elsif ($lcopt eq 'toggle') {
-#		return HMCCU_ExecuteToggleCommand ($hash);
-#	}
 	elsif (exists($hash->{hmccu}{roleCmds}{set}{$opt})) {
 		return HMCCU_ExecuteRoleCommand ($ioHash, $hash, 'set', $opt, $a, $h);
 	}

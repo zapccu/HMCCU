@@ -31,15 +31,12 @@ use RPC::XML::Client;
 use RPC::XML::Server;
 use SetExtensions;
 
-# require "$attr{global}{modpath}/FHEM/88_HMCCU.pm";
-
-
 ######################################################################
 # Constants
 ######################################################################
 
 # HMCCURPC version
-my $HMCCURPCPROC_VERSION = '5.0 240151718';
+my $HMCCURPCPROC_VERSION = '5.0 2024-02';
 
 # Maximum number of events processed per call of Read()
 my $HMCCURPCPROC_MAX_EVENTS = 100;
@@ -136,7 +133,8 @@ my %RPC_METHODS = (
 	'getValue'               => [ 'STRING', 'STRING' ]
 );
 
-# RPC event types
+# RPC event types:
+#
 # EV = Event
 # ND = New device
 # DD = Delete device
@@ -145,7 +143,7 @@ my %RPC_METHODS = (
 # UD = Update device
 # IN = Init RPC connection
 # EX = Exit RPC process
-# SL = Server loop
+# SL = Server loop (server is accepting connections)
 # ST = Statistics (not in list of event types)
 # TO = Timeout
 my @RPC_EVENT_TYPES = ('EV', 'ND', 'DD', 'RD', 'RA', 'UD', 'IN', 'EX', 'SL', 'TO');
@@ -214,7 +212,7 @@ sub HMCCURPCPROC_HandleConnection ($$$$);
 sub HMCCURPCPROC_SendQueue ($$$$);
 sub HMCCURPCPROC_SendData ($$);
 sub HMCCURPCPROC_ReceiveData ($$);
-sub HMCCURPCPROC_ReadFromSocket ($$$);
+sub HMCCURPCPROC_ReadFromSocket ($$);
 sub HMCCURPCPROC_DataAvailableOnSocket ($$);
 sub HMCCURPCPROC_WriteToSocket ($$$);
 sub HMCCURPCPROC_Write ($$$$);
@@ -572,7 +570,7 @@ sub HMCCURPCPROC_Shutdown ($)
 }
 
 ######################################################################
-# Set attribute
+# Set/delete attribute
 ######################################################################
 
 sub HMCCURPCPROC_Attr ($@)
@@ -580,12 +578,15 @@ sub HMCCURPCPROC_Attr ($@)
 	my ($cmd, $name, $attrname, $attrval) = @_;
 	my $hash = $defs{$name};
 	my $ioHash = $hash->{IODev};
+	my $restartRPC = 0;
 	
 	if ($cmd eq 'set') {
 		if ($attrname =~ /^(rpcAcceptTimeout|rpcReadTimeout|rpcWriteTimeout)$/ && $attrval == 0) {
+			$restartRPC = 1;
 			return "HMCCURPCPROC: [$name] Value for attribute $attrname must be greater than 0";
 		}
 		elsif ($attrname eq 'rpcServerAddr') {
+			$restartRPC = 1;
 			$hash->{hmccu}{localaddr} = $attrval;
 		}
 		elsif ($attrname eq 'rpcPingCCU') {
@@ -597,12 +598,13 @@ sub HMCCURPCPROC_Attr ($@)
 	}
 	elsif ($cmd eq 'del') {
 		if ($attrname eq 'rpcServerAddr') {
+			$restartRPC = 1;
 			$hash->{hmccu}{localaddr} = $hash->{hmccu}{defaultaddr};
 		}
 	}
 
 	HMCCU_LogDisplay ($hash, 2, 'Please restart RPC server to apply attribute changes')
-		if ($init_done && (!defined($ioHash) || $ioHash->{hmccu}{postInit} == 0) &&
+		if ($restartRPC && $init_done && (!defined($ioHash) || $ioHash->{hmccu}{postInit} == 0) &&
 			HMCCURPCPROC_CheckProcessState ($hash, 'running'));
 
 	return undef;
@@ -767,7 +769,6 @@ sub HMCCURPCPROC_Get ($@)
 				$result .= "$eh->{$i}{k} / $dn : $eh->{$i}{v}\n";
 			}
 		}
-		$result .= ('=' x 40)."\nRPC requests: ".$hash->{hmccu}{rpc}{requests};
 		return $result eq '' ? 'No event statistics found' : $result;
 	}
 	elsif ($opt eq 'rpcstate') {
@@ -1578,24 +1579,31 @@ sub HMCCURPCPROC_StartRPCServer ($)
 	my $rpcport       = $hash->{rpcport};
 	my ($serveraddr, $interface) = HMCCU_GetRPCServerInfo ($ioHash, $rpcport, 'host,name');
 	my $clkey         = 'CB'.$rpcport.$hash->{rpcid};
+	my $callbackport  = $rpcserverport+$rpcport+($ccunum*10);
 	$hash->{hmccu}{localaddr} = $localaddr;
 
+	my ($clurl, $auth) = HMCCU_BuildURL ($ioHash, $hash->{rpcport});
+	my ($flags, $type) = HMCCU_GetRPCServerInfo ($ioHash, $rpcport, 'flags,type');
+
 	# Store parameters for child process
-	my %procpar;
-	$procpar{socktimeout} = AttrVal ($name, 'rpcWriteTimeout',  $HMCCURPCPROC_TIMEOUT_WRITE);
-	$procpar{conntimeout} = AttrVal ($name, 'rpcConnTimeout',   $HMCCURPCPROC_TIMEOUT_CONNECTION);
-	$procpar{acctimeout}  = AttrVal ($name, 'rpcAcceptTimeout', $HMCCURPCPROC_TIMEOUT_ACCEPT);
-	$procpar{queuesize}   = AttrVal ($name, 'rpcQueueSize',     $HMCCURPCPROC_MAX_QUEUESIZE);
-	$procpar{queuesend}   = AttrVal ($name, 'rpcQueueSend',     $HMCCURPCPROC_MAX_QUEUESEND);
-	$procpar{statistics}  = AttrVal ($name, 'rpcStatistics',    $HMCCURPCPROC_STATISTICS);
-	$procpar{maxioerrors} = AttrVal ($name, 'rpcMaxIOErrors',   $HMCCURPCPROC_MAX_IOERRORS);
-	$procpar{ccuflags}    = AttrVal ($name, 'ccuflags',         'null');
-	$procpar{evttimeout}  = $evttimeout;
-	$procpar{interface}   = $interface;
-	($procpar{flags}, $procpar{type}) = HMCCU_GetRPCServerInfo ($ioHash, $rpcport, 'flags,type');
-	$procpar{name}        = $name;
-	$procpar{clkey}       = $clkey;
-	$procpar{parentPID}   = $$;
+	my %procpar = (
+		socktimeout => AttrVal ($name, 'rpcWriteTimeout',  $HMCCURPCPROC_TIMEOUT_WRITE),
+		conntimeout => AttrVal ($name, 'rpcConnTimeout',   $HMCCURPCPROC_TIMEOUT_CONNECTION),
+		acctimeout  => AttrVal ($name, 'rpcAcceptTimeout', $HMCCURPCPROC_TIMEOUT_ACCEPT),
+		queuesize   => AttrVal ($name, 'rpcQueueSize',     $HMCCURPCPROC_MAX_QUEUESIZE),
+		queuesend   => AttrVal ($name, 'rpcQueueSend',     $HMCCURPCPROC_MAX_QUEUESEND),
+		statistics  => AttrVal ($name, 'rpcStatistics',    $HMCCURPCPROC_STATISTICS),
+		maxioerrors => AttrVal ($name, 'rpcMaxIOErrors',   $HMCCURPCPROC_MAX_IOERRORS),
+		ccuflags    => AttrVal ($name, 'ccuflags',         'null'),
+		name        => $name,
+		evttimeout  => $evttimeout,
+		serveraddr  => $serveraddr,
+		interface   => $interface,
+		clkey       => $clkey,
+		flags       => $flags,
+		type        => $type,
+		parentPID   => $$
+	);
 	
 	# Reset state of server processes
 	$hash->{hmccu}{rpc}{state} = 'inactive';
@@ -1606,18 +1614,19 @@ sub HMCCURPCPROC_StartRPCServer ($)
 		if (!socketpair ($sockchild, $sockparent, AF_UNIX, SOCK_STREAM, PF_UNSPEC));
 	$sockchild->autoflush (1);
 	$sockparent->autoflush (1);
-	$hash->{hmccu}{sockparent} = $sockparent;
-	$hash->{hmccu}{sockchild} = $sockchild;
+	$hash->{hmccu}{sockparent}  = $sockparent;
+	$hash->{hmccu}{sockchild}   = $sockchild;
 
 	# Enable FHEM I/O, calculate RPC server port
 	my $pid = $$;
 	$hash->{FD} = fileno $sockchild;
 	$selectlist{"RPC.$name.$pid"} = $hash; 
-	my $callbackport = $rpcserverport+$rpcport+($ccunum*10);
-	
+
+	$hash->{hmccu}{rpc}{clkey}  = $clkey;
+	$hash->{hmccu}{rpc}{cbport} = $callbackport;
+
 	# Start RPC server process
-#	my $rpcpid = fhemFork ();
-	my $rpcpid = fork ();
+	my $rpcpid = fhemFork ();
 	if (!defined($rpcpid)) {
 		close ($sockparent);
 		close ($sockchild);
@@ -1638,8 +1647,6 @@ sub HMCCURPCPROC_StartRPCServer ($)
 	HMCCU_Log ($hash, 2, "RPC server process started for interface $interface with PID=$rpcpid");
 
 	# Store process parameters
-	$hash->{hmccu}{rpc}{clkey}  = $clkey;
-	$hash->{hmccu}{rpc}{cbport} = $callbackport;
 	$hash->{hmccu}{rpc}{pid}    = $rpcpid;
 	$hash->{hmccu}{rpc}{state}  = 'initialized';
 		
@@ -2081,6 +2088,12 @@ sub HMCCURPCPROC_ProcessMulticallResponse ($$$$$)
 ######################################################################
 # Send RPC request to CCU.
 # Supports XML and BINRPC requests.
+# Parameters:
+#   hash - FHEM hash reference or parameter hash reference
+# Parameter hash used by sub processes:
+#   NAME    - HMCCURPCPROC device name
+#   rpcport - CCU RPC port
+#   methods - list of RPC methods
 # Return value:
 #   (response, undef) - Request successful
 #   (undef, error) - Request failed with error
@@ -2089,22 +2102,29 @@ sub HMCCURPCPROC_ProcessMulticallResponse ($$$$$)
 sub HMCCURPCPROC_SendRequest ($@)
 {
 	my ($hash, $request, @param) = @_;
-	my $port = $hash->{rpcport};
 	
+	my $ph = exists($hash->{TYPE}) ? 0 : 1;
+
 	my $ioHash = $hash->{IODev};
-	if (!defined($ioHash)) {
+	if (!$ph && !defined($ioHash)) {
 		HMCCU_Log ($hash, 2, 'I/O device not found');
 		return (undef, 'I/O device not found');
 	}
 
+	my $port = $hash->{rpcport};
+	my $multicalls = 0;
+	if (!$ph) {
+		$multicalls = 1 if (
+			!HMCCU_IsFlag ($hash, 'noMulticalls') && defined($hash->{hmccu}{rpc}{multicall}) &&
+			HMCCU_IsRPCType ($ioHash, $port, 'A')
+		);
+	}
+
 	my $retry = AttrVal ($hash->{NAME}, 'rpcRetryRequest', 1);
 	$retry = 2 if ($retry > 2);
-	$hash->{hmccu}{rpc}{requests} //= 0;	# Count RPC requests
 
 	# Multicall request
-	if ($request eq 'system.multicall' && (
-		HMCCU_IsFlag ($hash, 'noMulticalls') || !defined($hash->{hmccu}{rpc}{multicall}) || HMCCU_IsRPCType ($ioHash, $port, 'B')
-	)) {
+	if ($request eq 'system.multicall' && !$multicalls) {
 		# If multicalls are not supported or disabled, execute multiple requests
 		my @respList = ();
 		my $reqList = shift @param;   # Reference to request array
@@ -2143,13 +2163,11 @@ sub HMCCURPCPROC_SendRequest ($@)
 	for (my $reqNo=0; $reqNo<=$retry; $reqNo++) {
 		if (HMCCU_IsRPCType ($ioHash, $port, 'A')) {
 			# XML RPC request
-			$hash->{hmccu}{rpc}{requests}++;
 			($resp, $err) = HMCCURPCPROC_SendXMLRequest ($hash, $ioHash, $request, @param);
 			last if (defined($resp));
 		}
 		elsif (HMCCU_IsRPCType ($ioHash, $port, 'B')) {
 			# Binary RPC request
-			$hash->{hmccu}{rpc}{requests}++;
 			($resp, $err) = HMCCURPCPROC_SendBINRequest ($hash, $ioHash, $request, @param);
 			last if (defined($resp));
 		}
@@ -2258,7 +2276,7 @@ sub HMCCURPCPROC_SendBINRequest ($@)
 	
 	my ($bytesWritten, $errmsg) = HMCCURPCPROC_WriteToSocket ($hash->{hmccu}{rpc}{connection}, $encreq, $timeoutWrite);
 	if ($bytesWritten > 0) {
-		my ($bytesRead, $encresp) = HMCCURPCPROC_ReadFromSocket ($hash, $hash->{hmccu}{rpc}{connection}, $timeoutRead);
+		my ($bytesRead, $encresp) = HMCCURPCPROC_ReadFromSocket ($hash->{hmccu}{rpc}{connection}, $timeoutRead);
 #		$socket->close ();
 	
 		if ($bytesRead > 0) {
@@ -2409,6 +2427,9 @@ sub HMCCURPCPROC_HandleConnection ($$$$)
 		$rpcsrv->{hmccu}{snd}{$et} = 0;
 	}
 
+	# Recover device hash
+	my $rpcDeviceHash = $defs{$name};
+
 	# Signal handler
 	$SIG{INT} = sub { $run = 0; HMCCU_Log ($name, 2, "$clkey received signal INT"); };	
 
@@ -2473,8 +2494,9 @@ sub HMCCURPCPROC_HandleConnection ($$$$)
 	close ($rpcsrv->{__daemon}) if ($prot eq 'B');
 
 	if ($run < 0) {
-		# Parent process not running
-		HMCCU_Log ($name, 1, "Parent process (FHEM,PID=$parentPID) not running. Shutting down RPC server process.");
+		# Parent process not running: try to deregister callback URL and terminate RPC server process
+		HMCCU_Log ($name, 1, "Parent process (FHEM,PID=$parentPID) not running. Shutting down RPC server process $clkey.");
+		HMCCURPCPROC_DeRegisterCallback ($rpcDeviceHash, 1);
 		HMCCU_Log ($name, 1, "FHEM will be restarted automatically if restart is enabled in system.d configuration.");
 		return;
 	}
@@ -2612,9 +2634,9 @@ sub HMCCURPCPROC_ReceiveData ($$)
 # Return (BytesRead, Data) on success.
 ######################################################################
 
-sub HMCCURPCPROC_ReadFromSocket ($$$)
+sub HMCCURPCPROC_ReadFromSocket ($$)
 {
-	my ($hash, $socket, $timeout) = @_;
+	my ($socket, $timeout) = @_;
 	
 	my $data = '';
 	my $totalBytes = 0;

@@ -1,6 +1,10 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 2024-02</h2>
+<ul>
+</ul>
+
 <h2>Version 5.0 240151718</h2>
 <ul>
 <li>#256 - [Feature] Remove indirect reading updates for virtual group devices</li>
