@@ -9082,7 +9082,7 @@ sub HMCCU_ScaleValue ($$$$$;$)
 		if (($mode == 0 || $mode == 2) && $value <= 1.0) {
 			$value = HMCCU_MinMax ($value, $min, $max)*$f;
 		}
-		elsif ($mode == 1 && ($value == 1 || $value >= 2)) {
+		elsif ($mode == 1 && "$value" ne '1.0' && ($value == 1 || $value >= 2)) {
 			# Do not change special values like -0.5, 1.005 or 1.01
 			$value = HMCCU_MinMax($value, $min*$f, $max*$f)/$f;
 		}
