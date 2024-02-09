@@ -3,6 +3,10 @@
 
 <h2>Version 5.0 2024-02</h2>
 <ul>
+<li>#261 - [Bugfix] Datapoint selection list not available for HMCCUDEV devices</li>
+<li>#260 - [Bugfix] Role command with enum argument requires control datapoint entry</li>
+<li>#259 - [Bugfix] List of enum values not added to role command</li>
+<li>#258 - [Bugfix] Datapoint value not scaled in set commands</li>
 </ul>
 
 <h2>Version 5.0 240151718</h2>
