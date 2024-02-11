@@ -6849,7 +6849,7 @@ sub HMCCU_UpdateRoleCommands ($$)
 				$cmdDef .= ':noArg';
 			}
 
-			if ((!exists($clHash->{hmccu}{roleCmds}{$cmdType}{$cmd}{channel}) && $cc eq '') || $cc eq $cmdChn) {
+			if ((!exists($clHash->{hmccu}{roleCmds}{$cmdType}{$cmd}{channel})) || $cc eq $cmdChn) {
 				$clHash->{hmccu}{roleCmds}{$cmdType}{$cmd}{channel} = $cmdChn;
 			}
 
@@ -6977,7 +6977,7 @@ sub HMCCU_ExecuteRoleCommand ($@)
 	my ($devAddr, undef) = HMCCU_SplitChnAddr ($clHash->{ccuaddr});
 	my $usage = $clHash->{hmccu}{roleCmds}{$mode}{$command}{usage};
 
-	my $channel = $clHash->{hmccu}{roleCmds}{$mode}{$command}{channel};
+	my $channel = $clHash->{hmccu}{roleCmds}{$mode}{$command}{channel} // '?';
 	if ("$channel" eq '?') {
 		my ($sc, $sd, $cc, $cd) = HMCCU_GetSCDatapoints ($clHash);
 		return HMCCU_SetError ($clHash, -12) if ($cc eq '');
