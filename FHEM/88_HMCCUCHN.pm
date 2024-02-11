@@ -523,6 +523,9 @@ sub HMCCUCHN_Get ($@)
       <li><b>set &lt;name&gt; armState {DISARMED|EXTSENS_ARMED|ALLSENS_ARMED|ALARM_BLOCKED}</b><br/>
 	     [alarm siren] Set arm state.
 	  </li><br/>
+	  <li><b>set &lt;name&gt; calibrate {START|STOP}</b><br/>
+		 [blind] Run calibration.
+	  </li><br/>
       <li><b>set &lt;name&gt; clear [&lt;reading-exp&gt;|reset]</b><br/>
          Delete readings matching specified reading name expression. Default expression is '.*'.
          Readings 'state' and 'control' are not deleted. With option 'reset' all readings

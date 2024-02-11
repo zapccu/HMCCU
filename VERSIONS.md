@@ -3,6 +3,8 @@
 
 <h2>Version 5.0 2024-02</h2>
 <ul>
+<li>#263 - [Feature] Provide calibrate command for HmIP blinds</li>
+<li>#262 - [Bugfix] No selection list for attributes control/state datapoint (HMCCUDEV)</li>
 <li>#261 - [Bugfix] Datapoint selection list not available for HMCCUDEV devices</li>
 <li>#260 - [Bugfix] Role command with enum argument requires control datapoint entry</li>
 <li>#259 - [Bugfix] List of enum values not added to role command</li>
