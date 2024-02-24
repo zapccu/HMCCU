@@ -3,6 +3,7 @@
 
 <h2>Version 5.0 2024-02</h2>
 <ul>
+<li>#266 - [Bugfix] Toggle command not available for blinds, shutters</li>
 <li>#264 - [Bugfix] Incorrect detection of devices with multiple identical channels</li>
 <li>#263 - [Feature] Provide calibrate command for HmIP blinds</li>
 <li>#262 - [Bugfix] No selection list for attributes control/state datapoint (HMCCUDEV)</li>
