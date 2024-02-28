@@ -3,6 +3,7 @@
 
 <h2>Version 5.0 2024-02</h2>
 <ul>
+<li>#267 - [Bugfix] Command parameter lookup list contains wrong values</li>
 <li>#266 - [Bugfix] Toggle command not available for blinds, shutters</li>
 <li>#264 - [Bugfix] Incorrect detection of devices with multiple identical channels</li>
 <li>#263 - [Feature] Provide calibrate command for HmIP blinds</li>
