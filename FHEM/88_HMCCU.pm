@@ -6747,6 +6747,9 @@ sub HMCCU_UpdateRoleCommands ($$)
 								my ($cNam, $cVal) = split (':', $e);
 								if (defined($cVal)) {
 									push @cNames, $cNam;
+									if (!HMCCU_IsFltNum($cVal)) {
+										HMCCU_Log ($clHash, 2, "cVal $cVal is not numeric. Enum = $el, type = $clHash->{ccutype}, dpt=$dpt, role=$role");
+									}
 									$min = $cVal if (!defined($min) || $cVal<$min);
 									$max = $cVal if (!defined($max) || $cVal>$max);
 									$clHash->{hmccu}{roleCmds}{$cmdType}{$cmd}{subcmd}{$scn}{look}{$cNam} = $cVal;

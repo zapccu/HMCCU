@@ -1,6 +1,13 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 2024-03</h2>
+<ul>
+<li>#268 - [Bugfix] Boost command has no parameters</li>
+<li>#241 - [Bugfix] Commands "set holiday" and "set party" are not working</li>
+<li>#146 - [Bugfix] Only commands for control role are created</li>
+</ul>
+
 <h2>Version 5.0 2024-02</h2>
 <ul>
 <li>#267 - [Bugfix] Command parameter lookup list contains wrong values</li>
