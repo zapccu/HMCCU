@@ -3,6 +3,8 @@
 
 <h2>Version 5.0 2024-03</h2>
 <ul>
+<li>#270 - [Feature] Harmonize week program commands and readings</li>
+<li>#269 - [Bugfix] Error in reading config in HMCCUConf.pm</li>
 <li>#268 - [Bugfix] Boost command has no parameters</li>
 <li>#241 - [Bugfix] Commands "set holiday" and "set party" are not working</li>
 <li>#146 - [Bugfix] Only commands for control role are created</li>
