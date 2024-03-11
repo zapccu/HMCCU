@@ -3,6 +3,10 @@
 
 <h2>Version 5.0 2024-03</h2>
 <ul>
+<li>#274 - [Bugfix] Command on-for-timer not working</li>
+<li>#273 - [Bugfix] Increase log level of message if command datapoint is not available</li>
+<li>#272 - [Bugfix] Aggregation of level informationen</li>
+<li>#271 - [Bugfix] GetEnumValues returns non numeric values</li>
 <li>#270 - [Feature] Harmonize week program commands and readings</li>
 <li>#269 - [Bugfix] Error in reading config in HMCCUConf.pm</li>
 <li>#268 - [Bugfix] Boost command has no parameters</li>
