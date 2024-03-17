@@ -7581,7 +7581,8 @@ sub HMCCU_ExecuteGetExtValuesCommand ($@)
 
 sub HMCCU_ExecuteGetMetaDataCommand ($@)
 {
-	my ($ioHash, $clHash) = @_;
+	my ($ioHash, $clHash, $filter) = @_;
+	$filter //= '.*';
 
 	my $response = HMCCU_HMScriptExt ($ioHash, '!GetMetaData', { name => $clHash->{ccuname} });
 	return (-2, $response) if ($response eq '' || $response =~ /^ERROR:.*/);
@@ -7593,24 +7594,25 @@ sub HMCCU_ExecuteGetMetaDataCommand ($@)
 	foreach my $meta (split /[\n\r]+/, $response) {
 		# Array values: 0=dataId, 1=value
 		my ($address, $dataId, $value) = split /=/, $meta;
-		if (!defined($value)) {
+		if (!defined($dataId)) {
 			# Return error message from script
-			return (0, $address) if (defined($address));
+			return (-2, $address) if (defined($address));
 			next;
 		}
+		next if ($dataId !~ /$filter/);
+		$value //= '';
 		my ($devAddr, $chnNo) = HMCCU_SplitChnAddr ($address);
 		my $rn = HMCCU_CorrectName ($dataId);
 		$rn = "$chnNo.$rn" if ($chnNo ne '' && $clHash->{TYPE} eq 'HMCCUDEV');
 		my $rv = HMCCU_ISO2UTF ($value);
 		$readings{$rn} = HMCCU_FormatReadingValue ($clHash, $rv, $dataId);
-		$result .= "$dataId=$value\n";
+		$result .= "$rn=$rv\n";
 		$count++;
 	}
 	
-	HMCCU_UpdateReadings ($clHash, \%readings);
+	HMCCU_UpdateReadings ($clHash, \%readings) if ($count > 0);
 
-	return ($count, $result);
-
+	return ($count, $count > 0 ? $result: 'OK');
 }
 
 ######################################################################
