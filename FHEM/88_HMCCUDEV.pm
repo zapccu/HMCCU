@@ -466,7 +466,7 @@ sub HMCCUDEV_Get ($@)
 	my $ccuflags = AttrVal ($name, 'ccuflags', 'null');
 
 	# Build set command syntax
-	my $syntax = 'update config paramsetDesc:noArg deviceInfo:noArg values extValues';
+	my $syntax = 'update config paramsetDesc:noArg deviceInfo:noArg values extValues metaData';
 	
 	# Command datapoint depends on readable datapoints
 	my @dpRList;
@@ -508,6 +508,10 @@ sub HMCCUDEV_Get ($@)
 	elsif ($lcopt eq 'paramsetdesc') {
 		my $result = HMCCU_ParamsetDescToStr ($ioHash, $hash);
 		return defined($result) ? $result : HMCCU_SetError ($hash, "Can't get device model");
+	}
+	elsif ($lcopt eq 'metadata') {
+		my $rc = HMCCU_ExecuteGetMetaDataCommand ($ioHash, $hash);
+		return $rc < 0 ? HMCCU_SetError ($hash, $rc) : 'OK';
 	}
 	elsif (exists($hash->{hmccu}{roleCmds}{get}{$opt})) {
 		return HMCCU_ExecuteRoleCommand ($ioHash, $hash, 'get', $opt, $a, $h);
