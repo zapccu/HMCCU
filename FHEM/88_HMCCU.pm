@@ -2255,22 +2255,35 @@ sub HMCCU_GetReadingName ($$$$$;$$$)
 	my $rn = '';
 	my @rnlist = ();
 
+	# Get reading prefix definitions
+	$ps = 'DEVICE' if (($c eq '0' && $ps eq 'MASTER') || $c eq 'd');
+	my $readingPrefix = HMCCU_GetAttribute ($ioHash, $hash, 'ccuReadingPrefix', '');
+	foreach my $pd (split (',', $readingPrefix)) {
+		my ($rSet, $rPre) = split (':', $pd);
+		if (exists($prefix{$rSet})) {
+			$prefix{$rSet} = defined($rPre) && $rPre ne '' ? $rPre : '';
+		}
+	}
+	my $rpf = exists($prefix{$ps}) ? $prefix{$ps} : '';
+
 	# Add device state reading
 	if (exists($newReadings{$d}) && ($c eq '' || $c eq '0')) {
 		push @rnlist, $newReadings{$d};
 	}
 
-	# Build list of reading name rul
+	# Build list of reading name rules
 	my @srl = ();
 	my $crn = AttrVal ($name, 'ccureadingname', '');
 	push @srl, split(';', $crn) if ($crn ne '');
-	if (!$hideStandard &&
-		(exists($hash->{hmccu}{control}{chn}) && "$c" eq $hash->{hmccu}{control}{chn}) ||
-		(exists($hash->{hmccu}{state}{chn}) && "$c" eq $hash->{hmccu}{state}{chn})
-	) {
-		my $role = HMCCU_GetChannelRole ($hash, $c);
+#	if (!$hideStandard &&
+#		(exists($hash->{hmccu}{control}{chn}) && "$c" eq $hash->{hmccu}{control}{chn}) ||
+#		(exists($hash->{hmccu}{state}{chn}) && "$c" eq $hash->{hmccu}{state}{chn})
+#	) {
+	if (!$hideStandard) {
+		my $role = $c ne '' && $c ne 'd' ? HMCCU_GetChannelRole ($hash, $c) : '';
 		$crn = $role ne '' && exists($HMCCU_READINGS->{$role}) ? $HMCCU_READINGS->{$role} : $HMCCU_READINGS->{DEFAULT};
 		$crn =~ s/C#\\/$c\\/g;
+		$crn =~ s/P#/$rpf/g;
 		push @srl, map { $replaceStandard ? $_ =~ s/\+//g : $_ } split(';',$crn);
 	}
 	
@@ -2284,17 +2297,6 @@ sub HMCCU_GetReadingName ($$$$$;$$$)
 	if ($i eq '' && $a ne '') {
 		$i = HMCCU_GetDeviceInterface ($ioHash, $a);
 	}
-
-	# Get reading prefix definitions
-	$ps = 'DEVICE' if (($c eq '0' && $ps eq 'MASTER') || $c eq 'd');
-	my $readingPrefix = HMCCU_GetAttribute ($ioHash, $hash, 'ccuReadingPrefix', '');
-	foreach my $pd (split (',', $readingPrefix)) {
-		my ($rSet, $rPre) = split (':', $pd);
-		if (exists($prefix{$rSet})) {
-			$prefix{$rSet} = defined($rPre) && $rPre ne '' ? $rPre : '';
-		}
-	}
-	my $rpf = exists($prefix{$ps}) ? $prefix{$ps} : '';
 
 	# Format reading name
 	if (!$h) {
@@ -6777,7 +6779,7 @@ sub HMCCU_UpdateRoleCommands ($$)
 						my $argList = '';
 						my $el = '';
 
-						if ($pv =~ /^[A-Z0-9_]+$/) {
+						if (defined($pv) && $pv =~ /^[A-Z0-9_]+$/) {
 							$paramDef = HMCCU_GetParamDef ($ioHash, "$addr:$cmdChn", 'VALUES', $pv);
 							if (defined($paramDef)) {
 								$clHash->{hmccu}{roleCmds}{$cmdType}{$cmd}{subcmd}{$scn}{min}  = $paramDef->{MIN};

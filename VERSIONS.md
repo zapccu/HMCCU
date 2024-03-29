@@ -3,6 +3,8 @@
 
 <h2>Version 5.0 2024-03</h2>
 <ul>
+<li>#280 - [Feature] Do not add reading prefix for customized readings enhancement</li>
+<li>#277 - [Bugfix] Error message 'no data available for week program'</li>
 <li>#276 - [Feature] Read meta data of device or channel</li>
 <li>#274 - [Bugfix] Command on-for-timer not working</li>
 <li>#273 - [Bugfix] Increase log level of message if command datapoint is not available</li>

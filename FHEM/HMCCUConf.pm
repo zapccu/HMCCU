@@ -254,8 +254,6 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'^(C#\.)?LEVEL$:+pct,+level',
 	'BLIND_TRANSMITTER' =>
 		'^(C#\.)?LEVEL$:+pct,+level;^(C#\.)?LEVEL_2$:+pctSlats',
-#	'BLIND_VIRTUAL_RECEIVER' =>
-#		'^(C#\.)?LEVEL$:+pct,+level',
 	'CAPACITIVE_FILLING_LEVEL_SENSOR' =>
 		'^(C#\.)?FILLING_LEVEL$:+level',
 	'CLIMATECONTROL_REGULATOR' =>
@@ -274,8 +272,6 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'^(C#\.)?LEVEL$:+pct,+level',
 	'DIMMER_TRANSMITTER' =>
 		'^(C#\.)?LEVEL$:+pct,+level;(C#\.)?COLOR$:+color',
-#	'DIMMER_VIRTUAL_RECEIVER' =>
-#		'^(C#\.)?LEVEL$:+pct,+level;(C#\.)?COLOR$:+color',
 	'DIMMER_WEEK_PROFILE' =>
 		'^(C#\.)?WEEK_PROGRAM_CHANNEL_LOCKS$:+progMode',
 	'HB_GENERIC_DIST' =>
@@ -301,8 +297,6 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'^(C#\.)?ILLUMINATION$:+brightness;(C#\.)?PRESENCE_DETECTION_STATE:+presence;(C#\.)?PRESENCE_DETECTION_ACTIVE:+detection',
 	'SHUTTER_TRANSMITTER' =>
 		'^(C#\.)?LEVEL$:+pct,+level',
-#	'SHUTTER_VIRTUAL_RECEIVER' =>
-#		'^(C#\.)?LEVEL$:+pct,+level',
 	'SWITCH_PANIC' =>
 		'^(C#\.)?STATE$:+panic',
 	'SWITCH_SENSOR' =>
@@ -321,11 +315,11 @@ $HMCCU_CONFIG_VERSION = '5.0';
 		'^(C#\.)?TEMPERATURE$:+measured-temp;'.
 		'^(C#\.)?HUMIDITY$:+humidity',
 	'DEFAULT' =>
-#		'^([0-9]{1,2}\.)?LEVEL$:+pct,+level;'.
 		'^([0-9]{1,2}\.)?SET_TEMPERATURE$:+desired-temp;'.
 		'^([0-9]{1,2}\.)?(ACTUAL_TEMPERATURE|TEMPERATURE)$:+measured-temp;'.
 		'^([0-9]{1,2}\.)?SET_POINT_TEMPERATURE$:+desired-temp;'.
-		'^([0-9]{1,2}\.)?ACTUAL_HUMIDITY$:+humidity'
+		'^([0-9]{1,2}\.)?ACTUAL_HUMIDITY$:+humidity;'.
+		'^(P#)?WEEK_PROGRAM_POINTER$:+week-program'
 );
 
 #######################################################################################
