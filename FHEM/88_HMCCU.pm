@@ -290,7 +290,6 @@ sub HMCCU_GetDeviceList ($);
 sub HMCCU_GetDeviceModel ($$$;$);
 sub HMCCU_GetDeviceName ($$;$);
 sub HMCCU_GetDeviceType ($$$);
-sub HMCCU_GetFirmwareVersions ($$);
 sub HMCCU_GetParamDef ($$$;$);
 sub HMCCU_GetReceivers ($$$);
 sub HMCCU_IsValidChannel ($$$);
@@ -1761,7 +1760,7 @@ sub HMCCU_Get ($@)
 	$opt = lc($opt);
 
 	my $options = "create createDev detectDev defaults:noArg exportDefaults dutycycle:noArg vars update".
-		" paramsetDesc firmware rpcEvents:noArg rpcState:noArg deviceInfo".
+		" paramsetDesc rpcEvents:noArg rpcState:noArg deviceInfo".
 		" ccuMsg:alarm,service ccuConfig:noArg ccuDevices:noArg".
 		" internal:groups,interfaces,versions";
 	if (defined($hash->{hmccu}{ccuSuppDevList}) && $hash->{hmccu}{ccuSuppDevList} ne '') {
@@ -1950,38 +1949,6 @@ sub HMCCU_Get ($@)
 	elsif ($opt eq 'dutycycle') {
 		HMCCU_GetDutyCycle ($hash);
 		return HMCCU_SetState ($hash, 'OK');
-	}
-	elsif ($opt eq 'firmware') {
-		my $devtype = shift @$a // '.*';
-		my $dtexp = $devtype eq 'full' ? '.*' : $devtype;
-		my $dc = HMCCU_GetFirmwareVersions ($hash, $dtexp);
-		return 'Found no firmware downloads' if ($dc == 0);
-		$result = "Found $dc firmware downloads. Click on the new version number for download\n\n";
-		if ($devtype eq 'full') {
-			$result .= "Type                 Available Date\n".('-' x 41)."\n";
-			foreach my $ct (keys %{$hash->{hmccu}{type}}) {
-				$result .= sprintf "%-20s <a href=\"http://www.eq-3.de/%s\">%-9s</a> %-10s\n",
-					$ct, $hash->{hmccu}{type}{$ct}{download},
-					$hash->{hmccu}{type}{$ct}{firmware}, $hash->{hmccu}{type}{$ct}{date};
-			}
-		}
-		else {
-			my @devlist = HMCCU_FindClientDevices ($hash, "(HMCCUDEV|HMCCUCHN)");
-			return $result if (scalar (@devlist) == 0);
-			$result .= 
-				"Device                    Type                 Current Available Date\n".('-' x 76)."\n";
-			foreach my $dev (@devlist) {
-				my $ch = $defs{$dev};
-				my $ct = uc($ch->{ccutype});
-				my $fw = $ch->{firmware} // 'N/A';
-				next if (!exists ($hash->{hmccu}{type}{$ct}) || $ct !~ /$dtexp/);
-				$result .= sprintf "%-25s %-20s %-7s <a href=\"http://www.eq-3.de/%s\">%-9s</a> %-10s\n",
-					$ch->{NAME}, $ct, $fw, $hash->{hmccu}{type}{$ct}{download},
-					$hash->{hmccu}{type}{$ct}{firmware}, $hash->{hmccu}{type}{$ct}{date};
-			}
-		}
-				
-		return HMCCU_SetState ($hash, 'OK', $result);
 	}
 	elsif ($opt eq 'defaults') {
 		$result = HMCCU_GetDefaults ($hash, 1);
@@ -5272,81 +5239,6 @@ sub HMCCU_FormatHashTable ($)
 }
 
 ######################################################################
-# Get available firmware versions from EQ-3 server.
-# Firmware version, date and download link are stored in hash
-# {hmccu}{type}{$type} in elements {firmware}, {date} and {download}.
-# Parameter type can be a regular expression matching valid Homematic
-# device types in upper case letters. Default is '.*'. 
-# Return number of available firmware downloads.
-######################################################################
-
-sub HMCCU_GetFirmwareVersions ($$)
-{
-	my ($hash, $type) = @_;
-	my $name = $hash->{NAME};
-	my $ccureqtimeout = AttrVal ($name, 'ccuReqTimeout', $HMCCU_TIMEOUT_REQUEST);
-	
-	my $url = 'http://www.eq-3.de/service/downloads.html';
-	my $response = GetFileFromURL ($url, $ccureqtimeout, "suchtext=&suche_in=&downloadart=11");
-	my @download = $response =~ m/<a.href="(Downloads\/Software\/Firmware\/[^"]+)/g;
-	my $dc = 0;
-	my @ts = localtime (time);
-	$ts[4] += 1;
-	$ts[5] += 1900;
-	
-	foreach my $dl (@download) {
-		my $dd = $ts[3];
-		my $mm = $ts[4];
-		my $yy = $ts[5];
-		my $fw;
-		my $date = "$dd.$mm.$yy";
-
-		my @path = split (/\//, $dl);
-		my $file = pop @path;
-		next if ($file !~ /(\.tgz|\.tar\.gz)/);
-		
-		$file =~ s/_update_V?/\|/;
-		my ($dt, $rest) = split (/\|/, $file);
-		next if (!defined($rest));
-		$dt =~ s/_/-/g;
-		$dt = uc($dt);
-		
-		next if ($dt !~ /$type/);
-		
-		if ($rest =~ /^([\d_]+)([0-9]{2})([0-9]{2})([0-9]{2})\./) {
-			# Filename with version and date
-			($fw, $yy, $mm, $dd) = ($1, $2, $3, $4);
-			$yy += 2000 if ($yy < 100);
-			$date = "$dd.$mm.$yy";
-			$fw =~ s/_$//;
-		}
-		elsif ($rest =~ /^([\d_]+)\./) {
-			# Filename with version
-			$fw = $1;
-		}
-		else {
-			$fw = $rest;
-		}
-		$fw =~ s/_/\./g;
-
-		# Compare firmware dates
-		if (exists ($hash->{hmccu}{type}{$dt}{date})) {
-			my ($dd1, $mm1, $yy1) = split (/\./, $hash->{hmccu}{type}{$dt}{date});
-			my $v1 = $yy1*10000+$mm1*100+$dd1;
-			my $v2 = $yy*10000+$mm*100+$dd;
-			next if ($v1 > $v2);
-		}
-
-		$dc++;		
-		$hash->{hmccu}{type}{$dt}{firmware} = $fw;
-		$hash->{hmccu}{type}{$dt}{date} = $date;
-		$hash->{hmccu}{type}{$dt}{download} = $dl;
-	}
-	
-	return $dc;
-}
-
-######################################################################
 # Read CCU device identified by device or channel name via Homematic
 # Script.
 # Return (device count, channel count) or (-1, -1) on error.
@@ -5402,9 +5294,6 @@ sub HMCCU_GetDevice ($$)
 	if (scalar(keys %objects) > 0) {
 		# Update HMCCU device tables
 		($devcount, $chncount) = HMCCU_UpdateDeviceTable ($hash, \%objects);
-
-		# Read available datapoints for device type
-#		HMCCU_GetDatapointList ($hash, $devname, $devtype) if (defined ($devname) && defined ($devtype));
 	}
 
 	return ($devcount, $chncount);
@@ -5609,11 +5498,6 @@ sub HMCCU_GetDeviceList ($)
 	if (scalar (keys %objects) > 0) {
 		# Update HMCCU device tables
 		($devcount, $chncount) = HMCCU_UpdateDeviceTable ($hash, \%objects);
-
-		# Read available datapoints for each device type
-		# This will lead to problems if some devices have different firmware versions
-		# or links to system variables !
-#		HMCCU_GetDatapointList ($hash);
 	}
 	
 	# Store group configurations
@@ -10519,13 +10403,6 @@ sub HMCCU_GetCredentials ($@)
       <li><b>get &lt;name&gt; exportdefaults &lt;filename&gt; [all]</b><br/>
       	Export default attributes into file. If option <i>all</i> is specified, also defaults imported
       	by customer will be exported.
-      </li><br/>
-      <li><b>get &lt;name&gt; firmware [{&lt;type-expr&gt; | full}]</b><br/>
-      	Get available firmware downloads from eq-3.de. List FHEM devices with current and available
-      	firmware version. By default only firmware version of defined HMCCUDEV or HMCCUCHN
-      	devices are listet. With option 'full' all available firmware versions are listed.
-      	With parameter <i>type-expr</i> one can filter displayed firmware versions by 
-      	Homematic device type.
       </li><br/>
 	  <li><b>get &lt;name&gt; internal &lt;parameter&gt;</b><br/>
 	  	Show internal values. Valid <i>parameters</i> are:<br/>
