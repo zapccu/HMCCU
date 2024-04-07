@@ -1,6 +1,12 @@
 
 <h1>Version History</h1>
 
+<h2>Version 5.0 2024-04</h2>
+<ul>
+<li>#283 - [Feature] Prepare usage of JSON API</li>
+<li>#277 - [Bugfix] Error message 'no data available for week program'</li>
+</ul>
+
 <h2>Version 5.0 2024-03</h2>
 <ul>
 <li>#280 - [Feature] Do not add reading prefix for customized readings enhancement</li>

@@ -35,6 +35,7 @@ use warnings;
 use Encode qw(decode encode);
 use RPC::XML::Client;
 use RPC::XML::Server;
+use JSON;
 use HttpUtils;
 use SetExtensions;
 use HMCCUConf;
@@ -57,7 +58,7 @@ my %HMCCU_CUST_CHN_DEFAULTS;
 my %HMCCU_CUST_DEV_DEFAULTS;
 
 # HMCCU version
-my $HMCCU_VERSION = '5.0 2024-03';
+my $HMCCU_VERSION = '5.0 2024-04';
 
 # Timeout for CCU requests (seconds)
 my $HMCCU_TIMEOUT_REQUEST = 4;
@@ -483,8 +484,8 @@ sub HMCCU_Define ($$$)
 	# Check if authentication is active
 	my ($username, $password) = HMCCU_GetCredentials ($hash);
 	$hash->{authentication} = $username ne '' && $password ne '' ? 'on' : 'off';
-	($username, $password) = HMCCU_GetCredentials ($hash, '_json_');
-	$hash->{json} = $username ne '' && $password ne '' ? 'on' : 'off';
+
+	$hash->{json} = HMCCU_JSONLogin ($hash) ? 'on' : 'off';
 
 	HMCCU_Log ($hash, 1, "Initialized version $HMCCU_VERSION");
 	
@@ -1519,6 +1520,13 @@ sub HMCCU_Set ($@)
 
 		my $err = HMCCU_SetCredentials ($hash, $credKey, $username, $password);
 		return HMCCU_SetError ($hash, "Can't store credentials. $err") if (defined($err));
+
+		if ($credInt eq 'json') {
+			if (!HMCCU_JSONLogin ($hash)) {
+				$hash->{json} = 'off';
+				return HMCCU_SetError ($hash, "JSON API login failed");
+			}
+		}
 
 		$hash->{$credInt} = 'on';
 		return 'Credentials for CCU authentication stored';		
@@ -4783,7 +4791,7 @@ sub HMCCU_UpdateInternalValues ($$$$$)
 	if ($type eq 'SVAL') {
 		if ($chkey =~ /^[0-9d]+\.P([0-9])_([A-Z]+)_($weekDayExp)_([0-9]+)$/) {
 			my ($prog, $valName, $day, $time) = ($1, $2, $3, $4);
-			$prog--;
+			# $prog--;
 			if (exists($weekDay{$day})) {
 				$ch->{hmccu}{tt}{$prog}{$valName}{$weekDay{$day}}{$time} = $value;
 			}
@@ -5545,6 +5553,20 @@ sub HMCCU_GetDeviceList ($)
 	HMCCU_UpdateReadings ($hash, \%ccuReading);
 	
 	return ($devcount, $chncount, $ifcount, $prgcount, $gcount);
+}
+
+sub HMCCU_GetDeviceList2 ($)
+{
+	my ($hash) = @_;
+	
+	my $response = HMCCU_JSONRequest ($hash, qq(
+{
+	"method": "Device.listAllDetail",
+	"params": {
+		"_session_id_": "$hash->{hmccu}{jsonAPI}{sessionId}"
+	}
+}
+	));
 }
 
 ######################################################################
@@ -8656,6 +8678,82 @@ sub HMCCU_FormatScriptResponse ($)
 }
 
 ######################################################################
+# Login to JSON API
+######################################################################
+
+sub HMCCU_JSONLogin ($)
+{
+	my ($hash) = @_;
+
+	my ($username, $password) = HMCCU_GetCredentials ($hash, '_json_');
+	return 0 if ($username eq '' || $password eq '');
+
+	my $response = HMCCU_JSONRequest ($hash, qq(
+{
+	"method": "Session.login",
+	"params": {
+		"username": "$username",
+		"password": "$password"
+	}
+}
+	));
+
+	return 0 if (!defined($response));
+
+	if ($response->{error} eq '') {
+		$hash->{hmccu}{jsonAPI}{sessionId} = $response->{result};
+		return 1;
+	}
+
+	return 0;
+}
+
+######################################################################
+# Execute JSON API request
+######################################################################
+
+sub HMCCU_JSONRequest ($$)
+{
+	my ($hash, $data) = @_;
+
+	my $ccureqtimeout = AttrVal ($hash->{NAME}, 'ccuReqTimeout', $HMCCU_TIMEOUT_REQUEST);
+
+	my ($url, $auth) = HMCCU_BuildURL ($hash, 'json');
+	return undef if ($url eq '');
+
+	# Blocking request
+	my ($err, $response) = HttpUtils_BlockingGet ({
+		url => $url,
+		method => 'POST',
+		timeout => $ccureqtimeout,
+		sslargs => {
+			SSL_verify_mode => 0
+		},
+		header => {
+			'Content-Type' => 'application/json; charset=utf-8'
+		},
+		data => $data
+	});
+
+	if ($err eq '') {
+		my $jsonResp;
+		my $rc = eval { $jsonResp = decode_json ($response); 1; };
+		if ($rc && defined($jsonResp)) {
+			$jsonResp->{error} //= '';
+			return $jsonResp;
+		}
+		else {
+			HMCCU_LogError ($hash, 2, "Decoding JSON response failed");
+		}
+	}
+	else {
+		HMCCU_LogError ($hash, 2, "JSON API request failed. $err");
+	}
+
+	return undef;
+}
+
+######################################################################
 # Bulk update of reading considering attribute substexcl.
 ######################################################################
 
@@ -9542,8 +9640,10 @@ sub HMCCU_BuildURL ($$)
 	my $authorization = $username ne '' && $password ne '' ? encode_base64 ("$username:$password", '') : '';
 
 	if ($backend eq 'rega') {
-		$url = $hash->{prot}."://".$hash->{host}.':'.
-			$HMCCU_REGA_PORT{$hash->{prot}}.'/tclrega.exe';
+		$url = $hash->{prot}."://".$hash->{host}.':'.$HMCCU_REGA_PORT{$hash->{prot}}.'/tclrega.exe';
+	}
+	elsif ($backend eq 'json') {
+		$url = $hash->{prot}."://".$hash->{host}.'/api/homematic.cgi';
 	}
 	else {
 		($url) = HMCCU_GetRPCServerInfo ($hash, $backend, 'url');
