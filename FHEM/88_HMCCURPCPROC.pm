@@ -1624,6 +1624,7 @@ sub HMCCURPCPROC_StartRPCServer ($)
 
 	$hash->{hmccu}{rpc}{clkey}  = $clkey;
 	$hash->{hmccu}{rpc}{cbport} = $callbackport;
+	$hash->{callback} = "$localaddr:$callbackport";
 
 	# Start RPC server process
 	my $rpcpid = fhemFork ();

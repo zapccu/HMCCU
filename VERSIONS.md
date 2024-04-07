@@ -4,6 +4,7 @@
 <h2>Version 5.0 2024-04</h2>
 <ul>
 <li>#283 - [Feature] Prepare usage of JSON API</li>
+<li>#278 - [Feature] Add internal reading for RPC callback port to HMCCURPCPROC devices</li>
 <li>#277 - [Bugfix] Error message 'no data available for week program'</li>
 </ul>
 
