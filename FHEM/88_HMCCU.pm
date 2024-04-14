@@ -4791,7 +4791,7 @@ sub HMCCU_UpdateInternalValues ($$$$$)
 	if ($type eq 'SVAL') {
 		if ($chkey =~ /^[0-9d]+\.P([0-9])_([A-Z]+)_($weekDayExp)_([0-9]+)$/) {
 			my ($prog, $valName, $day, $time) = ($1, $2, $3, $4);
-			# $prog--;
+			$prog--;
 			if (exists($weekDay{$day})) {
 				$ch->{hmccu}{tt}{$prog}{$valName}{$weekDay{$day}}{$time} = $value;
 			}
@@ -6979,6 +6979,7 @@ sub HMCCU_ExecuteRoleCommand ($@)
 		}
 
 		push @par, $value if (defined($value));
+		$cmdFnc{$cmdNo}{cmd} = $cmd;
 		$cmdFnc{$cmdNo}{fnc} = $cmd->{fnc};
 		$cmdFnc{$cmdNo}{par} = \@par;
 	}
@@ -7035,7 +7036,7 @@ sub HMCCU_ExecuteRoleCommand ($@)
 				if ($cmdFnc{$cmdNo}{fnc} ne '') {
 					# :(
 					no strict "refs";
-					$disp .= &{$cmdFnc{$cmdNo}{fnc}}($ioHash, $clHash, $resp, @{$cmdFnc{$cmdNo}{par}});
+					$disp .= &{$cmdFnc{$cmdNo}{fnc}}($ioHash, $clHash, $resp, $cmdFnc{$cmdNo}{cmd}, @{$cmdFnc{$cmdNo}{par}});
 					use strict "refs";
 				}
 			}
@@ -7532,28 +7533,36 @@ sub HMCCU_DisplayGetParameterResult ($$$)
 
 sub HMCCU_DisplayWeekProgram ($$$;$$)
 {
-	my ($ioHash, $clHash, $resp, $programName, $program) = @_;
+	my ($ioHash, $clHash, $resp, $cmd, $programName, $program) = @_;
 	$programName //= 'all';
 	$program //= 'all';
 	
 	my @weekDay = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday');
 	
 	my $convRes = HMCCU_UpdateParamsetReadings ($ioHash, $clHash, $resp);
-	
+
 	return "No data available for week program(s) $program"
 		if (!exists($clHash->{hmccu}{tt}) || ($program ne 'all' && !exists($clHash->{hmccu}{tt}{$program})));
+
+	if (defined($cmd->{min}) && HMCCU_IsIntNum($cmd->{min}) && $cmd->{min} > 0) {
+		$program -= $cmd->{min};
+		HMCCU_Log ($clHash, 2, "program = $program, was ".$program+$cmd->{min});
+	}
 
 	my $s = '<html>';
 	foreach my $w (sort keys %{$clHash->{hmccu}{tt}}) {
 		next if ("$w" ne "$program" && "$program" ne 'all');
+#		$w-- if ("$program" eq "$programName" && HMCCU_IsIntNum($program) && $w > 0);
 		my $p = $clHash->{hmccu}{tt}{$w};
 		my $pn = $programName ne 'all' ? $programName : $w+1;
 		$s .= '<p><b>Week Program '.$pn.'</b></p><br/><table border="1">';
 		foreach my $d (sort keys %{$p->{ENDTIME}}) {
+			my $beginTime = '00:00';
 			$s .= '<tr><td style="padding: 2px"><b>'.$weekDay[$d].'</b></td>';
 			foreach my $h (sort { $a <=> $b } keys %{$p->{ENDTIME}{$d}}) {
-				$s .= '<td style="padding: 2px">'.$p->{ENDTIME}{$d}{$h}.' / '.$p->{TEMPERATURE}{$d}{$h}.'</td>';
+				$s .= '<td style="padding: 2px">'.$beginTime.' - '.$p->{ENDTIME}{$d}{$h}.': '.$p->{TEMPERATURE}{$d}{$h}.'&deg;</td>';
 				last if ($p->{ENDTIME}{$d}{$h} eq '24:00');
+				$beginTime = $p->{ENDTIME}{$d}{$h};
 			}
 			$s .= '</tr>';
 		}
