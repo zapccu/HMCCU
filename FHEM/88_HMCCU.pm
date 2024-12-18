@@ -7568,7 +7568,7 @@ sub HMCCU_DisplayWeekProgram ($$$;$$)
 		$s .= '</table><br/>';
 	}
 	$s .= '</html>';
-		
+
 	return $s;
 }
 
