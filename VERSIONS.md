@@ -1,10 +1,10 @@
 
-#Version History
+# Version History
 
-##Version 5.0 2024-12
+## Version 5.0 2024-12
 
-*#285 - [Bugfix] set on/off not working for HM-Dis-TD-T
-*#287 - [Bugfix] set lock not working for Winmatic
+* #285 - [Bugfix] set on/off not working for HM-Dis-TD-T
+* #287 - [Bugfix] set lock not working for Winmatic
 
 <h2>Version 5.0 2024-04</h2>
 <ul>
